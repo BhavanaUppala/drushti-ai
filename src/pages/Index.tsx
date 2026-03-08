@@ -17,13 +17,13 @@ const Index = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [activeMode, setActiveMode] = useState<Mode | null>(null);
 
-  const { videoRef, isActive: cameraActive, startCamera, stopCamera, captureImage } = useCamera();
+  const { videoRef, isActive: cameraActive, isReady, startCamera, stopCamera, captureImage } = useCamera();
   const { speak, stop: stopSpeech, isSpeaking } = useSpeech();
 
   const analyzeImage = useCallback(
     async (mode: Mode) => {
-      if (!cameraActive) {
-        const msg = "Please start the camera first.";
+      if (!isReady) {
+        const msg = "Please start the camera first and wait for it to be ready.";
         toast.error(msg);
         speak(msg);
         return;
@@ -31,7 +31,9 @@ const Index = () => {
 
       const image = captureImage();
       if (!image) {
-        toast.error("Failed to capture image.");
+        const msg = "Camera not ready yet. Please wait a moment and try again.";
+        toast.error(msg);
+        speak(msg);
         return;
       }
 
