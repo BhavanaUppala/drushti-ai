@@ -169,9 +169,8 @@ const Index = () => {
   const handleVoiceCommand = useCallback(
     (transcript: string) => {
       unlock();
-      const text = transcript.split(" | ")[0]; // Use best alternative
+      const text = transcript.split(" | ")[0];
 
-      // Simple camera commands handled locally
       const lowerText = text.toLowerCase();
       const cameraStartWords = ["start camera", "open camera", "turn on camera", "कैमरा चालू", "कैमरा खोलो", "కెమెరా ఆన్"];
       const cameraStopWords = ["stop camera", "close camera", "turn off camera", "कैमरा बंद", "కెమెరా ఆపు"];
@@ -182,11 +181,10 @@ const Index = () => {
       }
       if (cameraStopWords.some(w => lowerText.includes(w))) {
         stopCamera();
-        speak(feedback.cameraStopped[language], language, () => resumeListening());
+        speak(feedback.cameraStopped[language], language, () => resumeRef.current());
         return;
       }
 
-      // Everything else goes to the AI with an image if camera is active
       sendToAssistant(text, cameraActive && isReady);
     },
     [unlock, handleStartCamera, stopCamera, speak, language, sendToAssistant, cameraActive, isReady]
@@ -195,10 +193,9 @@ const Index = () => {
   const { isListening, continuousMode, startListening, stopListening, startContinuousMode, resumeListening } =
     useVoiceCommand(handleVoiceCommand, language);
 
-  // Use resumeListening in sendToAssistant via ref to avoid circular deps
-  const resumeListeningRef = useRef(resumeListening);
+  // Keep resumeRef in sync so sendToAssistant can call it without circular deps
   useEffect(() => {
-    resumeListeningRef.current = resumeListening;
+    resumeRef.current = resumeListening;
   }, [resumeListening]);
 
   const labels = featureLabels[language];
