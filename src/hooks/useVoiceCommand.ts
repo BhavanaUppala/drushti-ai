@@ -13,6 +13,13 @@ export function useVoiceCommand(onCommand: CommandHandler, language: string = "e
   const recognitionRef = useRef<any>(null);
 
   const startListening = useCallback(() => {
+    // Pre-unlock TTS in user gesture context so async responses can speak
+    if ("speechSynthesis" in window) {
+      const silent = new SpeechSynthesisUtterance("");
+      silent.volume = 0;
+      window.speechSynthesis.speak(silent);
+    }
+
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) return;
 
