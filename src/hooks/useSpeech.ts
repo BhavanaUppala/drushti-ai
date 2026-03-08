@@ -8,13 +8,24 @@ const langMap: Record<string, string> = {
 
 function findBestVoice(voices: SpeechSynthesisVoice[], langCode: string): SpeechSynthesisVoice | null {
   const langPrefix = langCode.split("-")[0];
+
+  // Prefer Google voices (they sound more natural)
+  const googleExact = voices.find(v => v.lang === langCode && v.name.toLowerCase().includes("google"));
+  if (googleExact) return googleExact;
+
   // Exact match
   let v = voices.find(v => v.lang === langCode);
   if (v) return v;
-  // Prefix match (e.g. "te" matches "te-IN" or "te")
+
+  // Google prefix match
+  const googlePrefix = voices.find(v => v.lang.startsWith(langPrefix) && v.name.toLowerCase().includes("google"));
+  if (googlePrefix) return googlePrefix;
+
+  // Prefix match
   v = voices.find(v => v.lang.startsWith(langPrefix));
   if (v) return v;
-  // Partial name match (e.g. "Google తెలుగు" for Telugu)
+
+  // Name-based match
   const nameKeywords: Record<string, string[]> = {
     te: ["telugu", "తెలుగు"],
     hi: ["hindi", "हिन्दी", "हिंदी"],
@@ -23,6 +34,7 @@ function findBestVoice(voices: SpeechSynthesisVoice[], langCode: string): Speech
   const keywords = nameKeywords[langPrefix] || [];
   v = voices.find(vx => keywords.some(k => vx.name.toLowerCase().includes(k)));
   if (v) return v;
+
   return null;
 }
 
@@ -59,10 +71,11 @@ export function useSpeech() {
     const doSpeak = () => {
       const langCode = langMap[language] || "en-IN";
       const voices = window.speechSynthesis.getVoices();
-      
+
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = langCode;
-      utterance.rate = 0.85;
+      // Natural speech: slightly slower, warm pitch
+      utterance.rate = language === "te" ? 0.8 : 0.85;
       utterance.pitch = 1.05;
       utterance.volume = 1;
 
@@ -70,7 +83,6 @@ export function useSpeech() {
       if (matchedVoice) {
         utterance.voice = matchedVoice;
       } else if (language !== "en") {
-        // If no voice for requested language, try Hindi as fallback for Telugu, then English
         const fallbackLang = language === "te" ? "hi-IN" : "en-IN";
         const fallbackVoice = findBestVoice(voices, fallbackLang) || findBestVoice(voices, "en-IN");
         if (fallbackVoice) utterance.voice = fallbackVoice;
@@ -84,7 +96,6 @@ export function useSpeech() {
       window.speechSynthesis.speak(utterance);
     };
 
-    // If voices aren't loaded yet, wait for them
     const voices = window.speechSynthesis.getVoices();
     if (voices.length === 0) {
       const onVoicesReady = () => {
@@ -92,7 +103,6 @@ export function useSpeech() {
         doSpeak();
       };
       window.speechSynthesis.onvoiceschanged = onVoicesReady;
-      // Fallback timeout — speak anyway after 500ms
       setTimeout(() => {
         window.speechSynthesis.onvoiceschanged = null;
         doSpeak();
