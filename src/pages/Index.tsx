@@ -62,7 +62,7 @@ const Index = () => {
         setActiveMode(null);
       }
     },
-    [cameraActive, captureImage, speak]
+    [isReady, captureImage, speak]
   );
 
   const handleVoiceCommand = useCallback(
