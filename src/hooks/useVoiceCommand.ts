@@ -24,8 +24,13 @@ export function useVoiceCommand(onCommand: CommandHandler, language: string = "e
     const recognition = new SpeechRecognition();
     recognition.continuous = false;
     recognition.interimResults = false;
-    recognition.maxAlternatives = 3; // Get multiple alternatives for better matching
-    recognition.lang = langMap[language] || "en-IN";
+    recognition.maxAlternatives = 3;
+
+    // Telugu speech recognition is poorly supported on most browsers/devices.
+    // Use Hindi as the recognition language for Telugu users (better Indic support),
+    // while still matching Telugu keywords from the transcript.
+    const recLang = language === "te" ? "hi-IN" : (langMap[language] || "en-IN");
+    recognition.lang = recLang;
 
     recognition.onstart = () => setIsListening(true);
     recognition.onresult = (event: any) => {
