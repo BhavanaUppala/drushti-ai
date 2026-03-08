@@ -83,9 +83,22 @@ export function useSpeech() {
       if (matchedVoice) {
         utterance.voice = matchedVoice;
       } else if (language !== "en") {
-        const fallbackLang = language === "te" ? "hi-IN" : "en-IN";
-        const fallbackVoice = findBestVoice(voices, fallbackLang) || findBestVoice(voices, "en-IN");
-        if (fallbackVoice) utterance.voice = fallbackVoice;
+        // Telugu voices are rare — try Hindi, then any Indian English, then default
+        const fallbackChain = language === "te" 
+          ? ["hi-IN", "en-IN"] 
+          : ["en-IN"];
+        let fallbackVoice: SpeechSynthesisVoice | null = null;
+        for (const fb of fallbackChain) {
+          fallbackVoice = findBestVoice(voices, fb);
+          if (fallbackVoice) break;
+        }
+        if (!fallbackVoice && voices.length > 0) {
+          fallbackVoice = voices[0]; // Use any available voice
+        }
+        if (fallbackVoice) {
+          utterance.voice = fallbackVoice;
+          utterance.lang = fallbackVoice.lang; // Match lang to voice to avoid silent output
+        }
       }
 
       utterance.onstart = () => setIsSpeaking(true);

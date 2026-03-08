@@ -123,6 +123,8 @@ const Index = () => {
 
   const handleVoiceCommand = useCallback(
     async (transcript: string) => {
+      // Unlock TTS immediately — we're still in the user gesture chain from mic tap
+      unlock();
       // Use AI to understand the user's natural language intent
       try {
         const { data, error } = await supabase.functions.invoke("voice-intent", {
