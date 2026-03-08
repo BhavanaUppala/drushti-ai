@@ -46,6 +46,7 @@ const Index = () => {
   const analyzeImage = useCallback(
     async (mode: Mode) => {
       unlock(); // Unlock speech synthesis from user gesture
+      if (!isReady) {
         const msgs: Record<Language, string> = {
           en: "Please start the camera first.",
           hi: "कृपया पहले कैमरा चालू करें।",
