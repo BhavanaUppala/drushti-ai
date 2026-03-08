@@ -250,6 +250,14 @@ const Index = () => {
 
       {/* Features */}
       <div className="flex-1 px-4 mt-4 space-y-3 pb-4">
+        {/* Continuous Live Mode */}
+        <ContinuousModeButton
+          isRunning={isContinuousMode}
+          onStart={handleToggleContinuous}
+          onStop={stopContinuous}
+          disabled={isLoading || !isReady}
+          language={language}
+        />
         <FeatureButton
           icon={Eye}
           label={labels.scene[0]}
