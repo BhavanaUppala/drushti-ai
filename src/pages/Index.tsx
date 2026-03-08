@@ -26,13 +26,14 @@ const Index = () => {
   const [language, setLanguage] = useState<Language>("en");
 
   const { videoRef, isActive: cameraActive, isReady, startCamera, stopCamera, captureImage } = useCamera();
-  const { speak, stop: stopSpeech, isSpeaking } = useSpeech();
+  const { speak, stop: stopSpeech, isSpeaking, unlock } = useSpeech();
 
   // Speak welcome message when camera starts
   const handleStartCamera = useCallback(async () => {
+    unlock(); // Unlock speech synthesis from user gesture
     await startCamera();
     speak(welcomeMessages[language], language);
-  }, [startCamera, speak, language]);
+  }, [startCamera, speak, language, unlock]);
 
   // Preload voices
   useEffect(() => {
@@ -44,6 +45,7 @@ const Index = () => {
 
   const analyzeImage = useCallback(
     async (mode: Mode) => {
+      unlock(); // Unlock speech synthesis from user gesture
       if (!isReady) {
         const msgs: Record<Language, string> = {
           en: "Please start the camera first.",
