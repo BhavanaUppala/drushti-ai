@@ -39,10 +39,36 @@ const Index = () => {
 
   // Speak welcome message when camera starts
   const handleStartCamera = useCallback(async () => {
-    unlock(); // Unlock speech synthesis from user gesture
+    unlock();
     await startCamera();
     speak(welcomeMessages[language], language);
   }, [startCamera, speak, language, unlock]);
+
+  // Stop camera and continuous mode together
+  const handleStopCamera = useCallback(() => {
+    stopContinuous();
+    stopCamera();
+  }, [stopCamera, stopContinuous]);
+
+  // Toggle continuous live mode
+  const handleToggleContinuous = useCallback(() => {
+    unlock();
+    if (isContinuousMode) {
+      stopContinuous();
+    } else {
+      if (!isReady) {
+        const msgs: Record<Language, string> = {
+          en: "Please start the camera first.",
+          hi: "कृपया पहले कैमरा चालू करें।",
+          te: "దయచేసి ముందుగా కెమెరా ప్రారంభించండి.",
+        };
+        toast.error(msgs[language]);
+        speak(msgs[language], language);
+        return;
+      }
+      startContinuous();
+    }
+  }, [isContinuousMode, isReady, startContinuous, stopContinuous, unlock, speak, language]);
 
   // Preload voices
   useEffect(() => {
