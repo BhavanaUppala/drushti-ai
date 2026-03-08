@@ -6,5 +6,5 @@ verify_jwt = false
 [functions.voice-intent]
 verify_jwt = false
 
-[functions.elevenlabs-tts]
+[functions.google-tts]
 verify_jwt = false

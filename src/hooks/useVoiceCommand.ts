@@ -13,13 +13,6 @@ export function useVoiceCommand(onCommand: CommandHandler, language: string = "e
   const recognitionRef = useRef<any>(null);
 
   const startListening = useCallback(() => {
-    // Pre-unlock TTS in user gesture context so async responses can speak
-    if ("speechSynthesis" in window) {
-      const silent = new SpeechSynthesisUtterance("");
-      silent.volume = 0;
-      window.speechSynthesis.speak(silent);
-    }
-
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) return;
 
@@ -34,20 +27,17 @@ export function useVoiceCommand(onCommand: CommandHandler, language: string = "e
     recognition.maxAlternatives = 3;
 
     // Telugu speech recognition is poorly supported on most browsers/devices.
-    // Use Hindi as the recognition language for Telugu users (better Indic support),
-    // while still matching Telugu keywords from the transcript.
+    // Use Hindi as the recognition language for Telugu users (better Indic support).
     const recLang = language === "te" ? "hi-IN" : (langMap[language] || "en-IN");
     recognition.lang = recLang;
 
     recognition.onstart = () => setIsListening(true);
     recognition.onresult = (event: any) => {
-      // Check all alternatives for best match
       const results = event.results[0];
       const transcripts: string[] = [];
       for (let i = 0; i < results.length; i++) {
         transcripts.push(results[i].transcript.toLowerCase().trim());
       }
-      // Send the primary transcript, but pass all for matching
       onCommand(transcripts.join(" | "));
     };
     recognition.onerror = (e: any) => {
