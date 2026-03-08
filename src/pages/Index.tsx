@@ -99,11 +99,32 @@ const Index = () => {
 
   const handleVoiceCommand = useCallback(
     (command: string) => {
-      const sceneWords = ["scene", "describe", "see", "look", "दृश्य", "बताओ", "देखो", "दिखाओ", "దృశ్యం", "చూడు", "చెప్పు"];
-      const ocrWords = ["read", "text", "ocr", "पढ़ो", "टेक्स्ट", "लिखा", "చదువు", "టెక్స్ట్", "రాత"];
-      const currencyWords = ["money", "currency", "rupee", "note", "पैसा", "नोट", "रुपया", "పైసా", "నోటు", "రూపాయి"];
-      const startWords = ["camera", "start", "कैमरा", "शुरू", "చాలు", "కెమెరా"];
-      const stopWords = ["stop", "close", "बंद", "रुको", "ఆపు", "ఆగు"];
+      // Broader keyword sets — Telugu speech recognition returns varied transliterations
+      const sceneWords = [
+        "scene", "describe", "see", "look", "around",
+        "दृश्य", "बताओ", "देखो", "दिखाओ", "आसपास",
+        "దృశ్యం", "వివరించు", "వివరించ", "చూడు", "చూడ", "చెప్పు", "చెప్ప", "చుట్టూ", "ఏముంది", "ఏమిటి", "చూపించు", "చూపించ"
+      ];
+      const ocrWords = [
+        "read", "text", "ocr", "written",
+        "पढ़ो", "पढ़", "टेक्स्ट", "लिखा",
+        "చదువు", "చదువ", "చదివి", "టెక్స్ట్", "టెక్స్ట", "రాత", "రాసి", "అక్షరాలు", "ఏం రాసి"
+      ];
+      const currencyWords = [
+        "money", "currency", "rupee", "note", "cash",
+        "पैसा", "पैसे", "नोट", "रुपया", "रुपये",
+        "నోటు", "నోట్లు", "రూపాయి", "రూపాయలు", "పైసా", "పైసలు", "డబ్బు", "గుర్తించు", "గుర్తించ", "ఎంత"
+      ];
+      const startWords = [
+        "camera", "start", "open",
+        "कैमरा", "शुरू", "खोलो",
+        "కెమెరా", "కేమెరా", "చాలు", "స్టార్ట్", "మొదలు", "ప్రారంభ", "ఓపెన్"
+      ];
+      const stopWords = [
+        "stop", "close", "off",
+        "बंद", "रुको", "बंद करो",
+        "ఆపు", "ఆప", "ఆగు", "ఆగ", "బంద్", "క్లోజ్", "ఆపండి", "ఆపేయ"
+      ];
 
       if (sceneWords.some(w => command.includes(w))) {
         analyzeImage("scene");
@@ -121,7 +142,7 @@ const Index = () => {
         const msgs: Record<Language, string> = {
           en: "Try saying: describe scene, read text, or check currency.",
           hi: "कहिए: दृश्य बताओ, टेक्स्ट पढ़ो, या नोट पहचानो।",
-          te: "చెప్పండి: దృశ్యం వివరించు, టెక్స్ట్ చదువు, లేదా నోటు గుర్తించు.",
+          te: "చెప్పండి: చుట్టూ చూడు, టెక్స్ట్ చదువు, లేదా నోటు గుర్తించు.",
         };
         speak(msgs[language], language);
       }
