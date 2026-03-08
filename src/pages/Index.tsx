@@ -226,8 +226,15 @@ const Index = () => {
         videoRef={videoRef}
         isActive={cameraActive}
         onStart={handleStartCamera}
-        onStop={stopCamera}
+        onStop={handleStopCamera}
       />
+
+      {/* Continuous Mode Response */}
+      {isContinuousMode && latestDescription && (
+        <div className="bg-primary/5 border-2 border-primary/20 rounded-2xl p-4 mx-4 mt-3" role="status" aria-live="assertive">
+          <p className="text-foreground text-lg leading-relaxed">{latestDescription}</p>
+        </div>
+      )}
 
       {/* Response */}
       <div className="mt-4">
