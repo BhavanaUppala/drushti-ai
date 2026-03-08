@@ -6,9 +6,28 @@ interface ResponsePanelProps {
   isSpeaking: boolean;
   onSpeak: () => void;
   onStop: () => void;
+  language?: string;
 }
 
-export function ResponsePanel({ response, isLoading, isSpeaking, onSpeak, onStop }: ResponsePanelProps) {
+const loadingText: Record<string, string> = {
+  en: "Analyzing...",
+  hi: "विश्लेषण हो रहा है...",
+  te: "విశ్లేషిస్తోంది...",
+};
+
+const readAloudText: Record<string, string> = {
+  en: "Read Aloud",
+  hi: "पढ़कर सुनाएं",
+  te: "చదివి వినిపించు",
+};
+
+const stopText: Record<string, string> = {
+  en: "Stop Reading",
+  hi: "रुकें",
+  te: "ఆపండి",
+};
+
+export function ResponsePanel({ response, isLoading, isSpeaking, onSpeak, onStop, language = "en" }: ResponsePanelProps) {
   if (!response && !isLoading) return null;
 
   return (
@@ -18,7 +37,7 @@ export function ResponsePanel({ response, isLoading, isSpeaking, onSpeak, onStop
           <div className="w-3 h-3 rounded-full bg-primary animate-bounce" />
           <div className="w-3 h-3 rounded-full bg-primary animate-bounce [animation-delay:0.15s]" />
           <div className="w-3 h-3 rounded-full bg-primary animate-bounce [animation-delay:0.3s]" />
-          <span className="text-muted-foreground text-lg ml-2">Analyzing...</span>
+          <span className="text-muted-foreground text-lg ml-2">{loadingText[language] || loadingText.en}</span>
         </div>
       ) : (
         <>
@@ -29,7 +48,7 @@ export function ResponsePanel({ response, isLoading, isSpeaking, onSpeak, onStop
             aria-label={isSpeaking ? "Stop speaking" : "Read aloud"}
           >
             {isSpeaking ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
-            {isSpeaking ? "Stop Reading" : "Read Aloud"}
+            {isSpeaking ? (stopText[language] || stopText.en) : (readAloudText[language] || readAloudText.en)}
           </button>
         </>
       )}

@@ -1,5 +1,5 @@
-import { useState, useCallback } from "react";
-import { Eye, FileText, IndianRupee, Mic } from "lucide-react";
+import { useState, useCallback, useEffect } from "react";
+import { Eye, FileText, IndianRupee } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCamera } from "@/hooks/useCamera";
 import { useSpeech } from "@/hooks/useSpeech";
@@ -8,32 +8,64 @@ import { CameraView } from "@/components/CameraView";
 import { FeatureButton } from "@/components/FeatureButton";
 import { ResponsePanel } from "@/components/ResponsePanel";
 import { VoiceButton } from "@/components/VoiceButton";
+import { LanguageSelector, type Language } from "@/components/LanguageSelector";
 import { toast } from "sonner";
 
 type Mode = "scene" | "ocr" | "currency";
+
+const welcomeMessages: Record<Language, string> = {
+  en: "Hello, I'm ready. Point the camera and I will describe what I see.",
+  hi: "नमस्ते, मैं तैयार हूँ। कैमरा दिखाइए, मैं बताऊँगा क्या दिख रहा है।",
+  te: "హలో, నేను సిద్ధంగా ఉన్నాను. కెమెరా చూపించండి, నేను చెప్తాను.",
+};
 
 const Index = () => {
   const [response, setResponse] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [activeMode, setActiveMode] = useState<Mode | null>(null);
+  const [language, setLanguage] = useState<Language>("en");
 
   const { videoRef, isActive: cameraActive, isReady, startCamera, stopCamera, captureImage } = useCamera();
   const { speak, stop: stopSpeech, isSpeaking } = useSpeech();
 
+  // Speak welcome message when camera starts
+  const handleStartCamera = useCallback(async () => {
+    await startCamera();
+    speak(welcomeMessages[language], language);
+  }, [startCamera, speak, language]);
+
+  // Preload voices
+  useEffect(() => {
+    if ("speechSynthesis" in window) {
+      window.speechSynthesis.getVoices();
+      window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
+    }
+  }, []);
+
   const analyzeImage = useCallback(
     async (mode: Mode) => {
       if (!isReady) {
-        const msg = "Please start the camera first and wait for it to be ready.";
+        const msgs: Record<Language, string> = {
+          en: "Please start the camera first.",
+          hi: "कृपया पहले कैमरा चालू करें।",
+          te: "దయచేసి ముందుగా కెమెరా ప్రారంభించండి.",
+        };
+        const msg = msgs[language];
         toast.error(msg);
-        speak(msg);
+        speak(msg, language);
         return;
       }
 
       const image = captureImage();
       if (!image) {
-        const msg = "Camera not ready yet. Please wait a moment and try again.";
+        const msgs: Record<Language, string> = {
+          en: "Camera not ready yet. Please wait a moment.",
+          hi: "कैमरा अभी तैयार नहीं है। कृपया थोड़ा रुकें।",
+          te: "కెమెరా ఇంకా సిద్ధంగా లేదు. దయచేసి కొద్దిసేపు ఆగండి.",
+        };
+        const msg = msgs[language];
         toast.error(msg);
-        speak(msg);
+        speak(msg, language);
         return;
       }
 
@@ -43,7 +75,7 @@ const Index = () => {
 
       try {
         const { data, error } = await supabase.functions.invoke("vision-assist", {
-          body: { image, mode },
+          body: { image, mode, language },
         });
 
         if (error) throw error;
@@ -51,23 +83,22 @@ const Index = () => {
 
         const result = data.result || "No result received.";
         setResponse(result);
-        speak(result);
+        speak(result, language);
       } catch (err: any) {
         const msg = err?.message || "Analysis failed. Please try again.";
         setResponse(msg);
         toast.error(msg);
-        speak(msg);
+        speak(msg, language);
       } finally {
         setIsLoading(false);
         setActiveMode(null);
       }
     },
-    [isReady, captureImage, speak]
+    [isReady, captureImage, speak, language]
   );
 
   const handleVoiceCommand = useCallback(
     (command: string) => {
-      speak(`You said: ${command}`);
       if (command.includes("scene") || command.includes("describe") || command.includes("see") || command.includes("look")) {
         analyzeImage("scene");
       } else if (command.includes("read") || command.includes("text") || command.includes("ocr")) {
@@ -75,35 +106,55 @@ const Index = () => {
       } else if (command.includes("money") || command.includes("currency") || command.includes("rupee") || command.includes("note")) {
         analyzeImage("currency");
       } else if (command.includes("camera") || command.includes("start")) {
-        startCamera();
-        speak("Camera started.");
+        handleStartCamera();
       } else if (command.includes("stop") || command.includes("close")) {
         stopCamera();
-        speak("Camera stopped.");
+        const msgs: Record<Language, string> = { en: "Camera stopped.", hi: "कैमरा बंद।", te: "కెమెరా ఆపబడింది." };
+        speak(msgs[language], language);
       } else {
-        speak("Command not recognized. Try saying: describe scene, read text, or check currency.");
+        const msgs: Record<Language, string> = {
+          en: "Try saying: describe scene, read text, or check currency.",
+          hi: "कहिए: दृश्य बताओ, टेक्स्ट पढ़ो, या नोट पहचानो।",
+          te: "చెప్పండి: దృశ్యం వివరించు, టెక్స్ట్ చదువు, లేదా నోటు గుర్తించు.",
+        };
+        speak(msgs[language], language);
       }
     },
-    [analyzeImage, startCamera, stopCamera, speak]
+    [analyzeImage, handleStartCamera, stopCamera, speak, language]
   );
 
   const { isListening, startListening, stopListening } = useVoiceCommand(handleVoiceCommand);
 
+  const featureLabels: Record<Language, { scene: [string, string]; ocr: [string, string]; currency: [string, string] }> = {
+    en: { scene: ["Describe Scene", "Identify objects & surroundings"], ocr: ["Read Text", "OCR — reads text aloud"], currency: ["Check Currency", "Detect Indian Rupee notes"] },
+    hi: { scene: ["दृश्य बताएं", "वस्तुएं और परिवेश पहचानें"], ocr: ["टेक्स्ट पढ़ें", "लिखा हुआ पढ़कर सुनाएं"], currency: ["नोट पहचानें", "भारतीय रुपये के नोट"] },
+    te: { scene: ["దృశ్యం వివరించు", "వస్తువులు & పరిసరాలు"], ocr: ["టెక్స్ట్ చదువు", "రాసిన టెక్స్ట్ చదివి వినిపించు"], currency: ["నోటు గుర్తించు", "భారతీయ రూపాయల నోట్లు"] },
+  };
+
+  const labels = featureLabels[language];
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
-      <header className="px-4 pt-6 pb-4 text-center">
+      <header className="px-4 pt-6 pb-3 text-center">
         <h1 className="text-3xl font-black text-foreground tracking-tight">
           Drushti<span className="text-primary">AI</span>
         </h1>
-        <p className="text-muted-foreground text-base mt-1">Your AI Vision Assistant</p>
+        <p className="text-muted-foreground text-base mt-1">
+          {language === "hi" ? "आपका AI विज़न सहायक" : language === "te" ? "మీ AI విజన్ అసిస్టెంట్" : "Your AI Vision Assistant"}
+        </p>
       </header>
+
+      {/* Language Selector */}
+      <div className="mb-3">
+        <LanguageSelector language={language} onChange={setLanguage} />
+      </div>
 
       {/* Camera */}
       <CameraView
         videoRef={videoRef}
         isActive={cameraActive}
-        onStart={startCamera}
+        onStart={handleStartCamera}
         onStop={stopCamera}
       />
 
@@ -113,8 +164,9 @@ const Index = () => {
           response={response}
           isLoading={isLoading}
           isSpeaking={isSpeaking}
-          onSpeak={() => speak(response)}
+          onSpeak={() => speak(response, language)}
           onStop={stopSpeech}
+          language={language}
         />
       </div>
 
@@ -122,8 +174,8 @@ const Index = () => {
       <div className="flex-1 px-4 mt-4 space-y-3 pb-4">
         <FeatureButton
           icon={Eye}
-          label="Describe Scene"
-          description="Identify objects & surroundings"
+          label={labels.scene[0]}
+          description={labels.scene[1]}
           colorClass="text-feature-scene"
           onClick={() => analyzeImage("scene")}
           disabled={isLoading}
@@ -131,8 +183,8 @@ const Index = () => {
         />
         <FeatureButton
           icon={FileText}
-          label="Read Text"
-          description="OCR — reads text aloud"
+          label={labels.ocr[0]}
+          description={labels.ocr[1]}
           colorClass="text-feature-text"
           onClick={() => analyzeImage("ocr")}
           disabled={isLoading}
@@ -140,8 +192,8 @@ const Index = () => {
         />
         <FeatureButton
           icon={IndianRupee}
-          label="Check Currency"
-          description="Detect Indian Rupee notes"
+          label={labels.currency[0]}
+          description={labels.currency[1]}
           colorClass="text-feature-currency"
           onClick={() => analyzeImage("currency")}
           disabled={isLoading}
@@ -157,7 +209,9 @@ const Index = () => {
           onStop={stopListening}
         />
         <p className="text-center text-sm text-muted-foreground mt-2">
-          {isListening ? "Listening... speak a command" : "Tap mic for voice commands"}
+          {isListening
+            ? language === "hi" ? "सुन रहा हूँ... बोलिए" : language === "te" ? "వింటున్నాను... చెప్పండి" : "Listening... speak a command"
+            : language === "hi" ? "वॉइस कमांड के लिए माइक दबाएं" : language === "te" ? "వాయిస్ కమాండ్ కోసం మైక్ నొక్కండి" : "Tap mic for voice commands"}
         </p>
       </div>
     </div>
