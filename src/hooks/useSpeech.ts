@@ -12,8 +12,8 @@ export function useSpeech() {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const preUnlockedAudioRef = useRef<HTMLAudioElement | null>(null);
+  const onEndCallbackRef = useRef<(() => void) | null>(null);
 
-  // Call during a user gesture to pre-unlock Audio for mobile
   const unlock = useCallback(() => {
     const audio = new Audio();
     audio.play().catch(() => {});
@@ -21,7 +21,7 @@ export function useSpeech() {
     preUnlockedAudioRef.current = audio;
   }, []);
 
-  const speak = useCallback(async (text: string, language: string = "en") => {
+  const speak = useCallback(async (text: string, language: string = "en", onEnd?: () => void) => {
     if (!text || text.trim().length === 0) return;
 
     // Stop any current playback
@@ -33,6 +33,7 @@ export function useSpeech() {
       window.speechSynthesis.cancel();
     }
 
+    onEndCallbackRef.current = onEnd || null;
     setIsSpeaking(true);
 
     try {
@@ -55,8 +56,6 @@ export function useSpeech() {
       if (!data.audioContent) throw new Error("No audio received");
 
       const audioUrl = `data:audio/mpeg;base64,${data.audioContent}`;
-
-      // Use pre-unlocked Audio element if available (mobile), else create new
       const audio = preUnlockedAudioRef.current || new Audio();
       preUnlockedAudioRef.current = null;
 
@@ -64,10 +63,14 @@ export function useSpeech() {
       audio.onended = () => {
         setIsSpeaking(false);
         audioRef.current = null;
+        onEndCallbackRef.current?.();
+        onEndCallbackRef.current = null;
       };
       audio.onerror = () => {
         setIsSpeaking(false);
         audioRef.current = null;
+        onEndCallbackRef.current?.();
+        onEndCallbackRef.current = null;
       };
 
       audioRef.current = audio;
@@ -75,8 +78,10 @@ export function useSpeech() {
     } catch (err) {
       console.error("Cloud TTS error:", err);
       setIsSpeaking(false);
-      // Fallback to browser TTS
-      fallbackBrowserTTS(text, language);
+      fallbackBrowserTTS(text, language, () => {
+        onEndCallbackRef.current?.();
+        onEndCallbackRef.current = null;
+      });
     }
   }, []);
 
@@ -88,14 +93,18 @@ export function useSpeech() {
     if ("speechSynthesis" in window) {
       window.speechSynthesis.cancel();
     }
+    onEndCallbackRef.current = null;
     setIsSpeaking(false);
   }, []);
 
   return { speak, stop, isSpeaking, unlock };
 }
 
-function fallbackBrowserTTS(text: string, language: string) {
-  if (!("speechSynthesis" in window)) return;
+function fallbackBrowserTTS(text: string, language: string, onEnd?: () => void) {
+  if (!("speechSynthesis" in window)) {
+    onEnd?.();
+    return;
+  }
 
   const langCode = langMap[language] || "en-IN";
   const utterance = new SpeechSynthesisUtterance(text);
@@ -111,6 +120,9 @@ function fallbackBrowserTTS(text: string, language: string) {
     utterance.voice = voice;
     utterance.lang = voice.lang;
   }
+
+  utterance.onend = () => onEnd?.();
+  utterance.onerror = () => onEnd?.();
 
   window.speechSynthesis.speak(utterance);
 }

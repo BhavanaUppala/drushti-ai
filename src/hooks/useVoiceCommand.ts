@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef, useState, useEffect } from "react";
 
 type CommandHandler = (command: string) => void;
 
@@ -10,13 +10,19 @@ const langMap: Record<string, string> = {
 
 export function useVoiceCommand(onCommand: CommandHandler, language: string = "en") {
   const [isListening, setIsListening] = useState(false);
+  const [continuousMode, setContinuousMode] = useState(false);
   const recognitionRef = useRef<any>(null);
+  const continuousModeRef = useRef(false);
+
+  // Keep ref in sync with state
+  useEffect(() => {
+    continuousModeRef.current = continuousMode;
+  }, [continuousMode]);
 
   const startListening = useCallback(() => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) return;
 
-    // Stop any existing session first
     if (recognitionRef.current) {
       try { recognitionRef.current.abort(); } catch (_) {}
     }
@@ -26,8 +32,6 @@ export function useVoiceCommand(onCommand: CommandHandler, language: string = "e
     recognition.interimResults = false;
     recognition.maxAlternatives = 3;
 
-    // Telugu speech recognition is poorly supported on most browsers/devices.
-    // Use Hindi as the recognition language for Telugu users (better Indic support).
     const recLang = language === "te" ? "hi-IN" : (langMap[language] || "en-IN");
     recognition.lang = recLang;
 
@@ -44,7 +48,9 @@ export function useVoiceCommand(onCommand: CommandHandler, language: string = "e
       console.log("Speech recognition error:", e.error);
       setIsListening(false);
     };
-    recognition.onend = () => setIsListening(false);
+    recognition.onend = () => {
+      setIsListening(false);
+    };
 
     recognitionRef.current = recognition;
     try {
@@ -56,11 +62,30 @@ export function useVoiceCommand(onCommand: CommandHandler, language: string = "e
   }, [onCommand, language]);
 
   const stopListening = useCallback(() => {
+    setContinuousMode(false);
+    continuousModeRef.current = false;
     if (recognitionRef.current) {
       try { recognitionRef.current.stop(); } catch (_) {}
     }
     setIsListening(false);
   }, []);
 
-  return { isListening, startListening, stopListening };
+  const startContinuousMode = useCallback(() => {
+    setContinuousMode(true);
+    continuousModeRef.current = true;
+    startListening();
+  }, [startListening]);
+
+  const resumeListening = useCallback(() => {
+    if (continuousModeRef.current) {
+      // Small delay to avoid overlapping with speech recognition end
+      setTimeout(() => {
+        if (continuousModeRef.current) {
+          startListening();
+        }
+      }, 500);
+    }
+  }, [startListening]);
+
+  return { isListening, continuousMode, startListening, stopListening, startContinuousMode, resumeListening };
 }
