@@ -11,89 +11,71 @@ const languageInstructions: Record<string, string> = {
   te: "Respond entirely in Telugu (తెలుగు). Use Telugu script.",
 };
 
-function getSystemPrompt(mode: string, lang: string): string {
+function getSystemPrompt(lang: string): string {
   const langInstruction = languageInstructions[lang] || languageInstructions.en;
 
-  const baseRules = `You are a friendly, caring assistant helping a visually impaired person. ${langInstruction}
+  return `You are a friendly, caring, conversational AI assistant helping a visually impaired person navigate the world. ${langInstruction}
 
-CRITICAL RULES:
-- Speak in short, natural, conversational sentences — like a helpful friend standing next to them.
+WHO YOU ARE:
+- You are like a helpful friend standing next to them, describing what you see and answering their questions.
+- You maintain context from the conversation and can answer follow-up questions naturally.
+- You are warm, patient, and supportive.
+
+HOW TO RESPOND:
+- Speak in short, natural, conversational sentences.
 - NEVER use robotic phrases like "Detected object", "This is", "I can see", "The image shows".
 - Convert ALL numbers to words (500 → five hundred, 100 → one hundred).
-- Keep responses under 2-3 sentences maximum.
-- Be warm but brief. Every word should help them.`;
+- Keep responses under 2-3 sentences unless the user asks for more detail.
+- Every word should help them.
 
-  switch (mode) {
-    case "scene":
-      return `${baseRules}
+WHAT YOU CAN DO:
+- Describe surroundings, objects, people, and spatial relationships ("in front of you", "to your left").
+- Read text from signs, labels, documents, screens.
+- Identify Indian Rupee banknotes and give denominations in words.
+- Answer follow-up questions about things you've already described.
+- Have natural conversations about what you see or anything else they ask.
 
-You describe surroundings to someone who cannot see.
-- Focus on what matters: obstacles, people, objects nearby, and their positions relative to the person.
-- Use spatial words: "in front of you", "to your left", "ahead", "nearby".
-- Examples of good responses:
-  English: "A chair is right in front of you. There's a table to your left with a glass on it."
-  Hindi: "आपके ठीक सामने एक कुर्सी है। बाईं तरफ एक मेज पर गिलास रखा है।"
-  Telugu: "మీ ముందు ఒక కుర్చీ ఉంది. ఎడమ వైపు బల్ల మీద గ్లాసు ఉంది."`;
+WHEN GIVEN AN IMAGE:
+- Focus on what matters: obstacles, people, objects nearby, text visible, currency notes.
+- Use spatial words relative to the person.
 
-    case "ocr":
-      return `${baseRules}
+WHEN NO IMAGE IS PROVIDED:
+- Answer based on conversation context.
+- If they ask about something visual and you have no image, gently ask them to point the camera.
 
-You read text aloud for someone who cannot see it.
-- Read the text naturally, as if reading it to a friend.
-- If it's a sign, label, or document, briefly say what it is first, then read the content.
-- If no text is found, say something like "I don't see any text here."
-- Examples:
-  English: "This says 'Exit' — it's a door sign."
-  Hindi: "यहाँ लिखा है 'बाहर निकलें' — यह दरवाज़े का साइन है।"
-  Telugu: "ఇక్కడ 'బయటకు వెళ్ళండి' అని రాసి ఉంది — ఇది తలుపు సైన్."`;
-
-    case "currency":
-      return `${baseRules}
-
-You identify Indian Rupee banknotes for someone who cannot see them.
-- State the denomination clearly using words, not digits.
-- Convert numbers: 500 → five hundred, 2000 → two thousand.
-- If multiple notes, give individual values then the total.
-- If no currency found, say so gently.
-- Examples:
-  English: "Five hundred rupees."
-  Hindi: "यह पाँच सौ रुपये का नोट है।"
-  Telugu: "ఇది ఐదు వందల రూపాయల నోటు."`;
-
-    default:
-      return baseRules;
-  }
+Be conversational. Be human. Be helpful.`;
 }
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { image, mode, language = "en" } = await req.json();
+    const { image, message, history = [], language = "en" } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
-    const systemPrompt = getSystemPrompt(mode, language);
+    const systemPrompt = getSystemPrompt(language);
 
-    const userPrompts: Record<string, Record<string, string>> = {
-      en: {
-        scene: "Describe what's around me briefly.",
-        ocr: "Read any text you see.",
-        currency: "What Indian Rupee notes do you see?",
-      },
-      hi: {
-        scene: "मेरे आसपास क्या है, संक्षेप में बताइए।",
-        ocr: "जो भी लिखा दिखे वो पढ़िए।",
-        currency: "कौन से भारतीय रुपये के नोट दिख रहे हैं?",
-      },
-      te: {
-        scene: "నా చుట్టూ ఏముందో క్లుప్తంగా చెప్పండి.",
-        ocr: "కనిపించే టెక్స్ట్ చదవండి.",
-        currency: "ఏ భారతీయ రూపాయల నోట్లు కనిపిస్తున్నాయి?",
-      },
-    };
+    // Build messages array with conversation history
+    const messages: any[] = [
+      { role: "system", content: systemPrompt },
+    ];
 
-    const userText = userPrompts[language]?.[mode] || userPrompts.en[mode] || "Describe what you see.";
+    // Add conversation history (limit to last 20 messages to stay within context)
+    const recentHistory = history.slice(-20);
+    for (const msg of recentHistory) {
+      messages.push({ role: msg.role, content: msg.content });
+    }
+
+    // Build current user message
+    const userContent: any[] = [];
+    if (image) {
+      userContent.push({ type: "image_url", image_url: { url: `data:image/jpeg;base64,${image}` } });
+    }
+    const userText = message || (image ? "What do you see?" : "Hello");
+    userContent.push({ type: "text", text: userText });
+
+    messages.push({ role: "user", content: userContent });
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -103,16 +85,7 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         model: "google/gemini-2.5-flash",
-        messages: [
-          { role: "system", content: systemPrompt },
-          {
-            role: "user",
-            content: [
-              { type: "image_url", image_url: { url: `data:image/jpeg;base64,${image}` } },
-              { type: "text", text: userText },
-            ],
-          },
-        ],
+        messages,
       }),
     });
 
@@ -133,7 +106,7 @@ serve(async (req) => {
     }
 
     const data = await response.json();
-    const result = data.choices?.[0]?.message?.content || "Could not analyze the image.";
+    const result = data.choices?.[0]?.message?.content || "I'm sorry, I couldn't process that. Could you try again?";
 
     return new Response(JSON.stringify({ result }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
