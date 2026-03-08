@@ -1,9 +1,6 @@
-project_id = "vltmvbjvllnfxlddleov"
+project_id = "vltmvbjvbjvllnfxlddleov"
 
 [functions.vision-assist]
-verify_jwt = false
-
-[functions.voice-intent]
 verify_jwt = false
 
 [functions.google-tts]
