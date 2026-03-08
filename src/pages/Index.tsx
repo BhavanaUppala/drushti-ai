@@ -99,15 +99,21 @@ const Index = () => {
 
   const handleVoiceCommand = useCallback(
     (command: string) => {
-      if (command.includes("scene") || command.includes("describe") || command.includes("see") || command.includes("look")) {
+      const sceneWords = ["scene", "describe", "see", "look", "दृश्य", "बताओ", "देखो", "दिखाओ", "దృశ్యం", "చూడు", "చెప్పు"];
+      const ocrWords = ["read", "text", "ocr", "पढ़ो", "टेक्स्ट", "लिखा", "చదువు", "టెక్స్ట్", "రాత"];
+      const currencyWords = ["money", "currency", "rupee", "note", "पैसा", "नोट", "रुपया", "పైసా", "నోటు", "రూపాయి"];
+      const startWords = ["camera", "start", "कैमरा", "शुरू", "చాలు", "కెమెరా"];
+      const stopWords = ["stop", "close", "बंद", "रुको", "ఆపు", "ఆగు"];
+
+      if (sceneWords.some(w => command.includes(w))) {
         analyzeImage("scene");
-      } else if (command.includes("read") || command.includes("text") || command.includes("ocr")) {
+      } else if (ocrWords.some(w => command.includes(w))) {
         analyzeImage("ocr");
-      } else if (command.includes("money") || command.includes("currency") || command.includes("rupee") || command.includes("note")) {
+      } else if (currencyWords.some(w => command.includes(w))) {
         analyzeImage("currency");
-      } else if (command.includes("camera") || command.includes("start")) {
+      } else if (startWords.some(w => command.includes(w))) {
         handleStartCamera();
-      } else if (command.includes("stop") || command.includes("close")) {
+      } else if (stopWords.some(w => command.includes(w))) {
         stopCamera();
         const msgs: Record<Language, string> = { en: "Camera stopped.", hi: "कैमरा बंद।", te: "కెమెరా ఆపబడింది." };
         speak(msgs[language], language);
@@ -123,7 +129,7 @@ const Index = () => {
     [analyzeImage, handleStartCamera, stopCamera, speak, language]
   );
 
-  const { isListening, startListening, stopListening } = useVoiceCommand(handleVoiceCommand);
+  const { isListening, startListening, stopListening } = useVoiceCommand(handleVoiceCommand, language);
 
   const featureLabels: Record<Language, { scene: [string, string]; ocr: [string, string]; currency: [string, string] }> = {
     en: { scene: ["Describe Scene", "Identify objects & surroundings"], ocr: ["Read Text", "OCR — reads text aloud"], currency: ["Check Currency", "Detect Indian Rupee notes"] },

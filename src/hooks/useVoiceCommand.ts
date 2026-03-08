@@ -2,7 +2,13 @@ import { useCallback, useRef, useState } from "react";
 
 type CommandHandler = (command: string) => void;
 
-export function useVoiceCommand(onCommand: CommandHandler) {
+const langMap: Record<string, string> = {
+  en: "en-IN",
+  hi: "hi-IN",
+  te: "te-IN",
+};
+
+export function useVoiceCommand(onCommand: CommandHandler, language: string = "en") {
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<any>(null);
 
@@ -13,7 +19,7 @@ export function useVoiceCommand(onCommand: CommandHandler) {
     const recognition = new SpeechRecognition();
     recognition.continuous = false;
     recognition.interimResults = false;
-    recognition.lang = "en-IN";
+    recognition.lang = langMap[language] || "en-IN";
 
     recognition.onstart = () => setIsListening(true);
     recognition.onresult = (event: any) => {
@@ -25,7 +31,7 @@ export function useVoiceCommand(onCommand: CommandHandler) {
 
     recognitionRef.current = recognition;
     recognition.start();
-  }, [onCommand]);
+  }, [onCommand, language]);
 
   const stopListening = useCallback(() => {
     recognitionRef.current?.stop();
