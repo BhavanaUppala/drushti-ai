@@ -1,0 +1,4 @@
+project_id = "vltmvbjvllnfxlddleov"
+
+[functions.vision-assist]
+verify_jwt = false
