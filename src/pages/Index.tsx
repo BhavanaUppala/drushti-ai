@@ -93,6 +93,8 @@ const Index = () => {
     speak(welcomeMessages[language], language);
   }, [startCamera, speak, language, unlock]);
 
+  const resumeRef = useRef<() => void>(() => {});
+
   const sendToAssistant = useCallback(
     async (message: string, includeImage: boolean) => {
       unlock();
@@ -102,20 +104,20 @@ const Index = () => {
         if (!cameraActive) {
           const msg = feedback.cameraNeeded[language];
           toast.error(msg);
-          speak(msg, language, () => resumeListening());
+          speak(msg, language, () => resumeRef.current());
           return;
         }
         if (!isReady) {
           const msg = feedback.cameraNotReady[language];
           toast.error(msg);
-          speak(msg, language, () => resumeListening());
+          speak(msg, language, () => resumeRef.current());
           return;
         }
         image = captureImage();
         if (!image) {
           const msg = feedback.cameraNotReady[language];
           toast.error(msg);
-          speak(msg, language, () => resumeListening());
+          speak(msg, language, () => resumeRef.current());
           return;
         }
       }
@@ -124,7 +126,6 @@ const Index = () => {
       setActiveMode("thinking");
       setResponse("");
 
-      // Add user message to history
       const userMsg: ConversationMessage = { role: "user", content: message };
 
       try {
@@ -138,17 +139,15 @@ const Index = () => {
         const result = data.result || "I'm sorry, I couldn't process that.";
         const assistantMsg: ConversationMessage = { role: "assistant", content: result };
 
-        // Update history (keep last 20 exchanges)
         setConversationHistory(prev => [...prev, userMsg, assistantMsg].slice(-40));
         setResponse(result);
 
-        // Speak the result, then auto-resume listening
-        speak(result, language, () => resumeListening());
+        speak(result, language, () => resumeRef.current());
       } catch (err: any) {
         const msg = err?.message || "Something went wrong. Please try again.";
         setResponse(msg);
         toast.error(msg);
-        speak(msg, language, () => resumeListening());
+        speak(msg, language, () => resumeRef.current());
       } finally {
         setIsLoading(false);
         setActiveMode(null);
