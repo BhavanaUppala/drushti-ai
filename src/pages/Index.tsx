@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Eye, FileText, IndianRupee } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCamera } from "@/hooks/useCamera";
@@ -11,12 +11,15 @@ import { VoiceButton } from "@/components/VoiceButton";
 import { LanguageSelector, type Language } from "@/components/LanguageSelector";
 import { toast } from "sonner";
 
-type Mode = "scene" | "ocr" | "currency";
+type ConversationMessage = {
+  role: "user" | "assistant";
+  content: string;
+};
 
 const welcomeMessages: Record<Language, string> = {
-  en: "Hello, I'm ready to help. Just point the camera and tell me what you need.",
-  hi: "नमस्ते, मैं तैयार हूँ। कैमरा दिखाइए और बताइए क्या करना है।",
-  te: "హలో, నేను సిద్ధంగా ఉన్నాను. కెమెరా చూపించి, ఏం కావాలో చెప్పండి.",
+  en: "Hello, I'm ready to help. Just point the camera and talk to me. I'll keep listening.",
+  hi: "नमस्ते, मैं तैयार हूँ। कैमरा दिखाइए और बात करिए। मैं सुनता रहूँगा।",
+  te: "హలో, నేను సిద్ధంగా ఉన్నాను. కెమెరా చూపించి మాట్లాడండి. నేను వింటూ ఉంటాను.",
 };
 
 const feedback: Record<string, Record<Language, string>> = {
@@ -35,11 +38,6 @@ const feedback: Record<string, Record<Language, string>> = {
     hi: "कैमरा बंद हो गया।",
     te: "కెమెరా ఆపేశాను.",
   },
-  didntUnderstand: {
-    en: "I didn't quite catch that. You can say things like — describe what's around me, read the text, or check the money.",
-    hi: "मैं समझ नहीं पाया। आप कह सकते हैं — आसपास क्या है बताओ, लिखा हुआ पढ़ो, या नोट पहचानो।",
-    te: "నాకు అర్థం కాలేదు. మీరు ఇలా చెప్పవచ్చు — చుట్టూ ఏముందో చెప్పు, రాసింది చదువు, లేదా నోటు చూడు.",
-  },
   analyzing: {
     en: "Let me take a look...",
     hi: "देखता हूँ...",
@@ -53,22 +51,35 @@ const featureLabels: Record<Language, { scene: [string, string]; ocr: [string, s
   te: { scene: ["దృశ్యం వివరించు", "వస్తువులు & పరిసరాలు"], ocr: ["టెక్స్ట్ చదువు", "రాసిన టెక్స్ట్ చదివి వినిపించు"], currency: ["నోటు గుర్తించు", "భారతీయ రూపాయల నోట్లు"] },
 };
 
+const modePrompts: Record<string, Record<Language, string>> = {
+  scene: {
+    en: "Describe what's around me.",
+    hi: "मेरे आसपास क्या है बताइए।",
+    te: "నా చుట్టూ ఏముందో చెప్పండి.",
+  },
+  ocr: {
+    en: "Read any text you can see.",
+    hi: "जो भी लिखा दिखे वो पढ़िए।",
+    te: "కనిపించే టెక్స్ట్ చదవండి.",
+  },
+  currency: {
+    en: "What Indian Rupee notes do you see?",
+    hi: "कौन से भारतीय रुपये के नोट दिख रहे हैं?",
+    te: "ఏ భారతీయ రూపాయల నోట్లు కనిపిస్తున్నాయి?",
+  },
+};
+
 const Index = () => {
   const [response, setResponse] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [activeMode, setActiveMode] = useState<Mode | null>(null);
+  const [activeMode, setActiveMode] = useState<string | null>(null);
   const [language, setLanguage] = useState<Language>("en");
+  const [conversationHistory, setConversationHistory] = useState<ConversationMessage[]>([]);
 
   const { videoRef, isActive: cameraActive, isReady, startCamera, stopCamera, captureImage } = useCamera();
   const { speak, stop: stopSpeech, isSpeaking, unlock } = useSpeech();
 
-  const handleStartCamera = useCallback(async () => {
-    unlock();
-    await startCamera();
-    speak(welcomeMessages[language], language);
-  }, [startCamera, speak, language, unlock]);
-
-  // Pre-load browser voices for fallback TTS
+  // Pre-load browser voices
   useEffect(() => {
     if ("speechSynthesis" in window) {
       window.speechSynthesis.getVoices();
@@ -76,105 +87,120 @@ const Index = () => {
     }
   }, []);
 
-  const analyzeImage = useCallback(
-    async (mode: Mode) => {
+  const handleStartCamera = useCallback(async () => {
+    unlock();
+    await startCamera();
+    speak(welcomeMessages[language], language);
+  }, [startCamera, speak, language, unlock]);
+
+  const sendToAssistant = useCallback(
+    async (message: string, includeImage: boolean) => {
       unlock();
 
-      if (!cameraActive) {
-        const msg = feedback.cameraNeeded[language];
-        toast.error(msg);
-        speak(msg, language);
-        return;
+      let image: string | null = null;
+      if (includeImage) {
+        if (!cameraActive) {
+          const msg = feedback.cameraNeeded[language];
+          toast.error(msg);
+          speak(msg, language, () => resumeListening());
+          return;
+        }
+        if (!isReady) {
+          const msg = feedback.cameraNotReady[language];
+          toast.error(msg);
+          speak(msg, language, () => resumeListening());
+          return;
+        }
+        image = captureImage();
+        if (!image) {
+          const msg = feedback.cameraNotReady[language];
+          toast.error(msg);
+          speak(msg, language, () => resumeListening());
+          return;
+        }
       }
 
-      if (!isReady) {
-        const msg = feedback.cameraNotReady[language];
-        toast.error(msg);
-        speak(msg, language);
-        return;
-      }
-
-      const image = captureImage();
-      if (!image) {
-        const msg = feedback.cameraNotReady[language];
-        toast.error(msg);
-        speak(msg, language);
-        return;
-      }
-
-      setActiveMode(mode);
       setIsLoading(true);
+      setActiveMode("thinking");
       setResponse("");
-      speak(feedback.analyzing[language], language);
+
+      // Add user message to history
+      const userMsg: ConversationMessage = { role: "user", content: message };
 
       try {
         const { data, error } = await supabase.functions.invoke("vision-assist", {
-          body: { image, mode, language },
+          body: { image, message, history: conversationHistory, language },
         });
 
         if (error) throw error;
         if (data?.error) throw new Error(data.error);
 
-        const result = data.result || "No result received.";
+        const result = data.result || "I'm sorry, I couldn't process that.";
+        const assistantMsg: ConversationMessage = { role: "assistant", content: result };
+
+        // Update history (keep last 20 exchanges)
+        setConversationHistory(prev => [...prev, userMsg, assistantMsg].slice(-40));
         setResponse(result);
-        speak(result, language);
+
+        // Speak the result, then auto-resume listening
+        speak(result, language, () => resumeListening());
       } catch (err: any) {
         const msg = err?.message || "Something went wrong. Please try again.";
         setResponse(msg);
         toast.error(msg);
-        speak(msg, language);
+        speak(msg, language, () => resumeListening());
       } finally {
         setIsLoading(false);
         setActiveMode(null);
       }
     },
-    [cameraActive, isReady, captureImage, speak, language, unlock]
+    [cameraActive, isReady, captureImage, speak, language, unlock, conversationHistory]
   );
 
-  const handleVoiceCommand = useCallback(
-    async (transcript: string) => {
-      unlock();
-      try {
-        const { data, error } = await supabase.functions.invoke("voice-intent", {
-          body: { transcript, language },
-        });
-
-        if (error) throw error;
-
-        const intent = data?.intent || "unknown";
-
-        switch (intent) {
-          case "scene":
-          case "object":
-          case "followup":
-            analyzeImage("scene");
-            break;
-          case "ocr":
-            analyzeImage("ocr");
-            break;
-          case "currency":
-            analyzeImage("currency");
-            break;
-          case "start_camera":
-            handleStartCamera();
-            break;
-          case "stop_camera":
-            stopCamera();
-            speak(feedback.cameraStopped[language], language);
-            break;
-          default:
-            speak(feedback.didntUnderstand[language], language);
-            break;
-        }
-      } catch (err) {
-        console.error("Voice intent error:", err);
-        speak(feedback.didntUnderstand[language], language);
-      }
+  // Handle button-based feature requests
+  const analyzeWithMode = useCallback(
+    (mode: "scene" | "ocr" | "currency") => {
+      const prompt = modePrompts[mode]?.[language] || modePrompts[mode]?.en || "What do you see?";
+      sendToAssistant(prompt, true);
     },
-    [analyzeImage, handleStartCamera, stopCamera, speak, language, unlock]
+    [sendToAssistant, language]
   );
 
-  const { isListening, startListening, stopListening } = useVoiceCommand(handleVoiceCommand, language);
+  // Handle voice commands — everything goes to the AI conversationally
+  const handleVoiceCommand = useCallback(
+    (transcript: string) => {
+      unlock();
+      const text = transcript.split(" | ")[0]; // Use best alternative
+
+      // Simple camera commands handled locally
+      const lowerText = text.toLowerCase();
+      const cameraStartWords = ["start camera", "open camera", "turn on camera", "कैमरा चालू", "कैमरा खोलो", "కెమెరా ఆన్"];
+      const cameraStopWords = ["stop camera", "close camera", "turn off camera", "कैमरा बंद", "కెమెరా ఆపు"];
+
+      if (cameraStartWords.some(w => lowerText.includes(w))) {
+        handleStartCamera();
+        return;
+      }
+      if (cameraStopWords.some(w => lowerText.includes(w))) {
+        stopCamera();
+        speak(feedback.cameraStopped[language], language, () => resumeListening());
+        return;
+      }
+
+      // Everything else goes to the AI with an image if camera is active
+      sendToAssistant(text, cameraActive && isReady);
+    },
+    [unlock, handleStartCamera, stopCamera, speak, language, sendToAssistant, cameraActive, isReady]
+  );
+
+  const { isListening, continuousMode, startListening, stopListening, startContinuousMode, resumeListening } =
+    useVoiceCommand(handleVoiceCommand, language);
+
+  // Use resumeListening in sendToAssistant via ref to avoid circular deps
+  const resumeListeningRef = useRef(resumeListening);
+  useEffect(() => {
+    resumeListeningRef.current = resumeListening;
+  }, [resumeListening]);
 
   const labels = featureLabels[language];
 
@@ -217,40 +243,43 @@ const Index = () => {
           label={labels.scene[0]}
           description={labels.scene[1]}
           colorClass="text-feature-scene"
-          onClick={() => analyzeImage("scene")}
+          onClick={() => analyzeWithMode("scene")}
           disabled={isLoading}
-          isActive={activeMode === "scene"}
+          isActive={activeMode === "thinking"}
         />
         <FeatureButton
           icon={FileText}
           label={labels.ocr[0]}
           description={labels.ocr[1]}
           colorClass="text-feature-text"
-          onClick={() => analyzeImage("ocr")}
+          onClick={() => analyzeWithMode("ocr")}
           disabled={isLoading}
-          isActive={activeMode === "ocr"}
+          isActive={activeMode === "thinking"}
         />
         <FeatureButton
           icon={IndianRupee}
           label={labels.currency[0]}
           description={labels.currency[1]}
           colorClass="text-feature-currency"
-          onClick={() => analyzeImage("currency")}
+          onClick={() => analyzeWithMode("currency")}
           disabled={isLoading}
-          isActive={activeMode === "currency"}
+          isActive={activeMode === "thinking"}
         />
       </div>
 
       <div className="sticky bottom-0 pb-6 pt-3 bg-background/95 backdrop-blur-sm border-t border-border">
         <VoiceButton
           isListening={isListening}
-          onStart={startListening}
+          continuousMode={continuousMode}
+          onStart={startContinuousMode}
           onStop={stopListening}
         />
         <p className="text-center text-sm text-muted-foreground mt-2">
           {isListening
             ? language === "hi" ? "सुन रहा हूँ... बोलिए" : language === "te" ? "వింటున్నాను... చెప్పండి" : "Listening... go ahead"
-            : language === "hi" ? "माइक दबाकर बोलिए" : language === "te" ? "మైక్ నొక్కి చెప్పండి" : "Tap mic to speak"}
+            : continuousMode
+              ? language === "hi" ? "जवाब दे रहा हूँ..." : language === "te" ? "జవాబు చెప్తున్నాను..." : "Responding..."
+              : language === "hi" ? "माइक दबाकर बात शुरू करें" : language === "te" ? "మైక్ నొక్కి సంభాషణ మొదలు పెట్టండి" : "Tap mic to start conversation"}
         </p>
       </div>
     </div>
