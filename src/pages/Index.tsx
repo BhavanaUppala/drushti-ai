@@ -135,6 +135,8 @@ const Index = () => {
 
         switch (intent) {
           case "scene":
+          case "object":
+          case "followup":
             analyzeImage("scene");
             break;
           case "ocr":
@@ -156,35 +158,12 @@ const Index = () => {
         }
       } catch (err) {
         console.error("Voice intent error:", err);
-        // Fallback: try basic keyword matching if AI fails
-        fallbackKeywordMatch(transcript);
-      }
-    },
-    [analyzeImage, handleStartCamera, stopCamera, speak, language]
-  );
-
-  const fallbackKeywordMatch = useCallback(
-    (command: string) => {
-      const text = command.toLowerCase();
-      const sceneWords = ["scene", "describe", "look", "around", "दृश्य", "बताओ", "देखो", "చూడు", "చెప్పు", "చుట్టూ"];
-      const ocrWords = ["read", "text", "पढ़ो", "टेक्स्ट", "చదువు", "టెక్స్ట్"];
-      const currencyWords = ["money", "currency", "rupee", "note", "पैसा", "नोट", "నోటు", "డబ్బు"];
-      const startWords = ["camera", "start", "open", "कैमरा", "शुरू", "కెమెరా"];
-      const stopWords = ["stop", "close", "off", "बंद", "ఆపు"];
-
-      if (sceneWords.some(w => text.includes(w))) analyzeImage("scene");
-      else if (ocrWords.some(w => text.includes(w))) analyzeImage("ocr");
-      else if (currencyWords.some(w => text.includes(w))) analyzeImage("currency");
-      else if (startWords.some(w => text.includes(w))) handleStartCamera();
-      else if (stopWords.some(w => text.includes(w))) {
-        stopCamera();
-        speak(feedback.cameraStopped[language], language);
-      } else {
         speak(feedback.didntUnderstand[language], language);
       }
     },
     [analyzeImage, handleStartCamera, stopCamera, speak, language]
   );
+
 
   const { isListening, startListening, stopListening } = useVoiceCommand(handleVoiceCommand, language);
 
