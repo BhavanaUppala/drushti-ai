@@ -30,9 +30,10 @@ const Index = () => {
 
   // Speak welcome message when camera starts
   const handleStartCamera = useCallback(async () => {
+    unlock(); // Unlock speech synthesis from user gesture
     await startCamera();
     speak(welcomeMessages[language], language);
-  }, [startCamera, speak, language]);
+  }, [startCamera, speak, language, unlock]);
 
   // Preload voices
   useEffect(() => {
