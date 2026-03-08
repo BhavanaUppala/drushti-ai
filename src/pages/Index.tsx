@@ -162,8 +162,15 @@ const Index = () => {
         "बंद", "रुको", "बंद करो",
         "ఆపు", "ఆప", "ఆగు", "ఆగ", "బంద్", "క్లోజ్", "ఆపండి", "ఆపేయ"
       ];
+      const liveWords = [
+        "live", "continuous", "realtime", "real time", "auto",
+        "लाइव", "लगातार", "ऑटो",
+        "లైవ్", "నిరంతర", "ఆటో", "కొనసాగించు"
+      ];
 
-      if (sceneWords.some(w => command.includes(w))) {
+      if (liveWords.some(w => command.includes(w))) {
+        handleToggleContinuous();
+      } else if (sceneWords.some(w => command.includes(w))) {
         analyzeImage("scene");
       } else if (ocrWords.some(w => command.includes(w))) {
         analyzeImage("ocr");
@@ -172,19 +179,19 @@ const Index = () => {
       } else if (startWords.some(w => command.includes(w))) {
         handleStartCamera();
       } else if (stopWords.some(w => command.includes(w))) {
-        stopCamera();
+        handleStopCamera();
         const msgs: Record<Language, string> = { en: "Camera stopped.", hi: "कैमरा बंद।", te: "కెమెరా ఆపబడింది." };
         speak(msgs[language], language);
       } else {
         const msgs: Record<Language, string> = {
-          en: "Try saying: describe scene, read text, or check currency.",
-          hi: "कहिए: दृश्य बताओ, टेक्स्ट पढ़ो, या नोट पहचानो।",
-          te: "చెప్పండి: చుట్టూ చూడు, టెక్స్ట్ చదువు, లేదా నోటు గుర్తించు.",
+          en: "Try saying: describe scene, read text, check currency, or live mode.",
+          hi: "कहिए: दृश्य बताओ, टेक्स्ट पढ़ो, नोट पहचानो, या लाइव मोड।",
+          te: "చెప్పండి: చుట్టూ చూడు, టెక్స్ట్ చదువు, నోటు గుర్తించు, లేదా లైవ్ మోడ్.",
         };
         speak(msgs[language], language);
       }
     },
-    [analyzeImage, handleStartCamera, stopCamera, speak, language]
+    [analyzeImage, handleStartCamera, handleStopCamera, handleToggleContinuous, speak, language]
   );
 
   const { isListening, startListening, stopListening } = useVoiceCommand(handleVoiceCommand, language);
