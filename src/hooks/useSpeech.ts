@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef, useState, useEffect } from "react";
 
 const langMap: Record<string, string> = {
   en: "en-IN",
@@ -6,12 +6,43 @@ const langMap: Record<string, string> = {
   te: "te-IN",
 };
 
+function findBestVoice(voices: SpeechSynthesisVoice[], langCode: string): SpeechSynthesisVoice | null {
+  const langPrefix = langCode.split("-")[0];
+  // Exact match
+  let v = voices.find(v => v.lang === langCode);
+  if (v) return v;
+  // Prefix match (e.g. "te" matches "te-IN" or "te")
+  v = voices.find(v => v.lang.startsWith(langPrefix));
+  if (v) return v;
+  // Partial name match (e.g. "Google తెలుగు" for Telugu)
+  const nameKeywords: Record<string, string[]> = {
+    te: ["telugu", "తెలుగు"],
+    hi: ["hindi", "हिन्दी", "हिंदी"],
+    en: ["english"],
+  };
+  const keywords = nameKeywords[langPrefix] || [];
+  v = voices.find(vx => keywords.some(k => vx.name.toLowerCase().includes(k)));
+  if (v) return v;
+  return null;
+}
+
 export function useSpeech() {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const unlockedRef = useRef(false);
+  const voicesLoadedRef = useRef(false);
 
-  // Unlock speechSynthesis from a user gesture context (required on mobile)
+  // Pre-load voices
+  useEffect(() => {
+    if (!("speechSynthesis" in window)) return;
+    const loadVoices = () => {
+      const v = window.speechSynthesis.getVoices();
+      if (v.length > 0) voicesLoadedRef.current = true;
+    };
+    loadVoices();
+    window.speechSynthesis.onvoiceschanged = loadVoices;
+  }, []);
+
   const unlock = useCallback(() => {
     if (unlockedRef.current) return;
     if (!("speechSynthesis" in window)) return;
@@ -25,37 +56,50 @@ export function useSpeech() {
     if (!("speechSynthesis" in window)) return;
     window.speechSynthesis.cancel();
 
-    // Retry mechanism: on some mobile browsers, voices load lazily
-    const attemptSpeak = (retries: number) => {
+    const doSpeak = () => {
+      const langCode = langMap[language] || "en-IN";
+      const voices = window.speechSynthesis.getVoices();
+      
       const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = langMap[language] || "en-IN";
+      utterance.lang = langCode;
       utterance.rate = 0.85;
       utterance.pitch = 1.05;
       utterance.volume = 1;
 
-      const voices = window.speechSynthesis.getVoices();
-      const langCode = langMap[language] || "en-IN";
-      const matchedVoice =
-        voices.find(v => v.lang === langCode) ||
-        voices.find(v => v.lang.startsWith(langCode.split("-")[0]));
-      if (matchedVoice) utterance.voice = matchedVoice;
+      const matchedVoice = findBestVoice(voices, langCode);
+      if (matchedVoice) {
+        utterance.voice = matchedVoice;
+      } else if (language !== "en") {
+        // If no voice for requested language, try Hindi as fallback for Telugu, then English
+        const fallbackLang = language === "te" ? "hi-IN" : "en-IN";
+        const fallbackVoice = findBestVoice(voices, fallbackLang) || findBestVoice(voices, "en-IN");
+        if (fallbackVoice) utterance.voice = fallbackVoice;
+      }
 
       utterance.onstart = () => setIsSpeaking(true);
       utterance.onend = () => setIsSpeaking(false);
-      utterance.onerror = (e) => {
-        // If blocked/canceled and we have retries left, try again after a short delay
-        if (retries > 0 && e.error !== "canceled") {
-          setTimeout(() => attemptSpeak(retries - 1), 250);
-        } else {
-          setIsSpeaking(false);
-        }
-      };
+      utterance.onerror = () => setIsSpeaking(false);
 
       utteranceRef.current = utterance;
       window.speechSynthesis.speak(utterance);
     };
 
-    attemptSpeak(2);
+    // If voices aren't loaded yet, wait for them
+    const voices = window.speechSynthesis.getVoices();
+    if (voices.length === 0) {
+      const onVoicesReady = () => {
+        window.speechSynthesis.onvoiceschanged = null;
+        doSpeak();
+      };
+      window.speechSynthesis.onvoiceschanged = onVoicesReady;
+      // Fallback timeout — speak anyway after 500ms
+      setTimeout(() => {
+        window.speechSynthesis.onvoiceschanged = null;
+        doSpeak();
+      }, 500);
+    } else {
+      doSpeak();
+    }
   }, []);
 
   const stop = useCallback(() => {
