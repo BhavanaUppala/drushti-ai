@@ -30,6 +30,13 @@ const Index = () => {
   const { videoRef, isActive: cameraActive, isReady, startCamera, stopCamera, captureImage } = useCamera();
   const { speak, stop: stopSpeech, isSpeaking, unlock } = useSpeech();
 
+  const {
+    isRunning: isContinuousMode,
+    latestDescription,
+    start: startContinuous,
+    stop: stopContinuous,
+  } = useContinuousAnalysis({ captureImage, speak, language });
+
   // Speak welcome message when camera starts
   const handleStartCamera = useCallback(async () => {
     unlock(); // Unlock speech synthesis from user gesture
