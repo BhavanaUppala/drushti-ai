@@ -26,7 +26,7 @@ const Index = () => {
   const [language, setLanguage] = useState<Language>("en");
 
   const { videoRef, isActive: cameraActive, isReady, startCamera, stopCamera, captureImage } = useCamera();
-  const { speak, stop: stopSpeech, isSpeaking } = useSpeech();
+  const { speak, stop: stopSpeech, isSpeaking, unlock } = useSpeech();
 
   // Speak welcome message when camera starts
   const handleStartCamera = useCallback(async () => {
