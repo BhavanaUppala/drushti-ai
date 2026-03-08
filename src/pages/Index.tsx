@@ -4,12 +4,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { useCamera } from "@/hooks/useCamera";
 import { useSpeech } from "@/hooks/useSpeech";
 import { useVoiceCommand } from "@/hooks/useVoiceCommand";
-import { useContinuousAnalysis } from "@/hooks/useContinuousAnalysis";
 import { CameraView } from "@/components/CameraView";
 import { FeatureButton } from "@/components/FeatureButton";
 import { ResponsePanel } from "@/components/ResponsePanel";
 import { VoiceButton } from "@/components/VoiceButton";
-import { ContinuousModeButton } from "@/components/ContinuousModeButton";
 import { LanguageSelector, type Language } from "@/components/LanguageSelector";
 import { toast } from "sonner";
 
@@ -30,45 +28,12 @@ const Index = () => {
   const { videoRef, isActive: cameraActive, isReady, startCamera, stopCamera, captureImage } = useCamera();
   const { speak, stop: stopSpeech, isSpeaking, unlock } = useSpeech();
 
-  const {
-    isRunning: isContinuousMode,
-    latestDescription,
-    start: startContinuous,
-    stop: stopContinuous,
-  } = useContinuousAnalysis({ captureImage, speak, language });
-
   // Speak welcome message when camera starts
   const handleStartCamera = useCallback(async () => {
-    unlock();
+    unlock(); // Unlock speech synthesis from user gesture
     await startCamera();
     speak(welcomeMessages[language], language);
   }, [startCamera, speak, language, unlock]);
-
-  // Stop camera and continuous mode together
-  const handleStopCamera = useCallback(() => {
-    stopContinuous();
-    stopCamera();
-  }, [stopCamera, stopContinuous]);
-
-  // Toggle continuous live mode
-  const handleToggleContinuous = useCallback(() => {
-    unlock();
-    if (isContinuousMode) {
-      stopContinuous();
-    } else {
-      if (!isReady) {
-        const msgs: Record<Language, string> = {
-          en: "Please start the camera first.",
-          hi: "कृपया पहले कैमरा चालू करें।",
-          te: "దయచేసి ముందుగా కెమెరా ప్రారంభించండి.",
-        };
-        toast.error(msgs[language]);
-        speak(msgs[language], language);
-        return;
-      }
-      startContinuous();
-    }
-  }, [isContinuousMode, isReady, startContinuous, stopContinuous, unlock, speak, language]);
 
   // Preload voices
   useEffect(() => {
@@ -162,15 +127,8 @@ const Index = () => {
         "बंद", "रुको", "बंद करो",
         "ఆపు", "ఆప", "ఆగు", "ఆగ", "బంద్", "క్లోజ్", "ఆపండి", "ఆపేయ"
       ];
-      const liveWords = [
-        "live", "continuous", "realtime", "real time", "auto",
-        "लाइव", "लगातार", "ऑटो",
-        "లైవ్", "నిరంతర", "ఆటో", "కొనసాగించు"
-      ];
 
-      if (liveWords.some(w => command.includes(w))) {
-        handleToggleContinuous();
-      } else if (sceneWords.some(w => command.includes(w))) {
+      if (sceneWords.some(w => command.includes(w))) {
         analyzeImage("scene");
       } else if (ocrWords.some(w => command.includes(w))) {
         analyzeImage("ocr");
@@ -179,19 +137,19 @@ const Index = () => {
       } else if (startWords.some(w => command.includes(w))) {
         handleStartCamera();
       } else if (stopWords.some(w => command.includes(w))) {
-        handleStopCamera();
+        stopCamera();
         const msgs: Record<Language, string> = { en: "Camera stopped.", hi: "कैमरा बंद।", te: "కెమెరా ఆపబడింది." };
         speak(msgs[language], language);
       } else {
         const msgs: Record<Language, string> = {
-          en: "Try saying: describe scene, read text, check currency, or live mode.",
-          hi: "कहिए: दृश्य बताओ, टेक्स्ट पढ़ो, नोट पहचानो, या लाइव मोड।",
-          te: "చెప్పండి: చుట్టూ చూడు, టెక్స్ట్ చదువు, నోటు గుర్తించు, లేదా లైవ్ మోడ్.",
+          en: "Try saying: describe scene, read text, or check currency.",
+          hi: "कहिए: दृश्य बताओ, टेक्स्ट पढ़ो, या नोट पहचानो।",
+          te: "చెప్పండి: చుట్టూ చూడు, టెక్స్ట్ చదువు, లేదా నోటు గుర్తించు.",
         };
         speak(msgs[language], language);
       }
     },
-    [analyzeImage, handleStartCamera, handleStopCamera, handleToggleContinuous, speak, language]
+    [analyzeImage, handleStartCamera, stopCamera, speak, language]
   );
 
   const { isListening, startListening, stopListening } = useVoiceCommand(handleVoiceCommand, language);
@@ -226,15 +184,8 @@ const Index = () => {
         videoRef={videoRef}
         isActive={cameraActive}
         onStart={handleStartCamera}
-        onStop={handleStopCamera}
+        onStop={stopCamera}
       />
-
-      {/* Continuous Mode Response */}
-      {isContinuousMode && latestDescription && (
-        <div className="bg-primary/5 border-2 border-primary/20 rounded-2xl p-4 mx-4 mt-3" role="status" aria-live="assertive">
-          <p className="text-foreground text-lg leading-relaxed">{latestDescription}</p>
-        </div>
-      )}
 
       {/* Response */}
       <div className="mt-4">
@@ -250,14 +201,6 @@ const Index = () => {
 
       {/* Features */}
       <div className="flex-1 px-4 mt-4 space-y-3 pb-4">
-        {/* Continuous Live Mode */}
-        <ContinuousModeButton
-          isRunning={isContinuousMode}
-          onStart={handleToggleContinuous}
-          onStop={stopContinuous}
-          disabled={isLoading || !isReady}
-          language={language}
-        />
         <FeatureButton
           icon={Eye}
           label={labels.scene[0]}
