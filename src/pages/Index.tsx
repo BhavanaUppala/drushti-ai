@@ -45,11 +45,12 @@ const feedback: Record<string, Record<Language, string>> = {
     hi: "देखता हूँ...",
     te: "చూస్తాను...",
   },
-  thinking: {
-    en: "One moment...",
-    hi: "एक पल...",
-    te: "ఒక్క క్షణం...",
-  },
+};
+
+const featureLabels: Record<Language, { scene: [string, string]; ocr: [string, string]; currency: [string, string] }> = {
+  en: { scene: ["Describe Scene", "Identify objects & surroundings"], ocr: ["Read Text", "OCR — reads text aloud"], currency: ["Check Currency", "Detect Indian Rupee notes"] },
+  hi: { scene: ["दृश्य बताएं", "वस्तुएं और परिवेश पहचानें"], ocr: ["टेक्स्ट पढ़ें", "लिखा हुआ पढ़कर सुनाएं"], currency: ["नोट पहचानें", "भारतीय रुपये के नोट"] },
+  te: { scene: ["దృశ్యం వివరించు", "వస్తువులు & పరిసరాలు"], ocr: ["టెక్స్ట్ చదువు", "రాసిన టెక్స్ట్ చదివి వినిపించు"], currency: ["నోటు గుర్తించు", "భారతీయ రూపాయల నోట్లు"] },
 };
 
 const Index = () => {
@@ -67,6 +68,7 @@ const Index = () => {
     speak(welcomeMessages[language], language);
   }, [startCamera, speak, language, unlock]);
 
+  // Pre-load browser voices for fallback TTS
   useEffect(() => {
     if ("speechSynthesis" in window) {
       window.speechSynthesis.getVoices();
@@ -77,8 +79,16 @@ const Index = () => {
   const analyzeImage = useCallback(
     async (mode: Mode) => {
       unlock();
-      if (!isReady) {
+
+      if (!cameraActive) {
         const msg = feedback.cameraNeeded[language];
+        toast.error(msg);
+        speak(msg, language);
+        return;
+      }
+
+      if (!isReady) {
+        const msg = feedback.cameraNotReady[language];
         toast.error(msg);
         speak(msg, language);
         return;
@@ -118,14 +128,12 @@ const Index = () => {
         setActiveMode(null);
       }
     },
-    [isReady, captureImage, speak, language, unlock]
+    [cameraActive, isReady, captureImage, speak, language, unlock]
   );
 
   const handleVoiceCommand = useCallback(
     async (transcript: string) => {
-      // Unlock TTS immediately — we're still in the user gesture chain from mic tap
       unlock();
-      // Use AI to understand the user's natural language intent
       try {
         const { data, error } = await supabase.functions.invoke("voice-intent", {
           body: { transcript, language },
@@ -163,17 +171,10 @@ const Index = () => {
         speak(feedback.didntUnderstand[language], language);
       }
     },
-    [analyzeImage, handleStartCamera, stopCamera, speak, language]
+    [analyzeImage, handleStartCamera, stopCamera, speak, language, unlock]
   );
 
-
   const { isListening, startListening, stopListening } = useVoiceCommand(handleVoiceCommand, language);
-
-  const featureLabels: Record<Language, { scene: [string, string]; ocr: [string, string]; currency: [string, string] }> = {
-    en: { scene: ["Describe Scene", "Identify objects & surroundings"], ocr: ["Read Text", "OCR — reads text aloud"], currency: ["Check Currency", "Detect Indian Rupee notes"] },
-    hi: { scene: ["दृश्य बताएं", "वस्तुएं और परिवेश पहचानें"], ocr: ["टेक्स्ट पढ़ें", "लिखा हुआ पढ़कर सुनाएं"], currency: ["नोट पहचानें", "भारतीय रुपये के नोट"] },
-    te: { scene: ["దృశ్యం వివరించు", "వస్తువులు & పరిసరాలు"], ocr: ["టెక్స్ట్ చదువు", "రాసిన టెక్స్ట్ చదివి వినిపించు"], currency: ["నోటు గుర్తించు", "భారతీయ రూపాయల నోట్లు"] },
-  };
 
   const labels = featureLabels[language];
 
