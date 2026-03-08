@@ -4,11 +4,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { useCamera } from "@/hooks/useCamera";
 import { useSpeech } from "@/hooks/useSpeech";
 import { useVoiceCommand } from "@/hooks/useVoiceCommand";
+import { useMedicineReminders } from "@/hooks/useMedicineReminders";
 import { CameraView } from "@/components/CameraView";
 import { FeatureButton } from "@/components/FeatureButton";
 import { ResponsePanel } from "@/components/ResponsePanel";
 import { VoiceButton } from "@/components/VoiceButton";
 import { LanguageSelector, type Language } from "@/components/LanguageSelector";
+import { MedicineReminders } from "@/components/MedicineReminders";
 import { toast } from "sonner";
 
 type ConversationMessage = {
@@ -43,24 +45,29 @@ const feedback: Record<string, Record<Language, string>> = {
     hi: "देखता हूँ...",
     te: "చూస్తాను...",
   },
+  reminderAlert: {
+    en: "Time to take your medicine: ",
+    hi: "दवा लेने का समय: ",
+    te: "మందు తీసుకునే సమయం: ",
+  },
 };
 
 const featureLabels: Record<Language, { scene: [string, string]; ocr: [string, string]; currency: [string, string] }> = {
-  en: { scene: ["Describe Scene", "Identify objects & surroundings"], ocr: ["Read Text", "OCR — reads text aloud"], currency: ["Check Currency", "Detect Indian Rupee notes"] },
-  hi: { scene: ["दृश्य बताएं", "वस्तुएं और परिवेश पहचानें"], ocr: ["टेक्स्ट पढ़ें", "लिखा हुआ पढ़कर सुनाएं"], currency: ["नोट पहचानें", "भारतीय रुपये के नोट"] },
-  te: { scene: ["దృశ్యం వివరించు", "వస్తువులు & పరిసరాలు"], ocr: ["టెక్స్ట్ చదువు", "రాసిన టెక్స్ట్ చదివి వినిపించు"], currency: ["నోటు గుర్తించు", "భారతీయ రూపాయల నోట్లు"] },
+  en: { scene: ["Describe Scene", "Identify objects & surroundings"], ocr: ["Read Text", "OCR, prescriptions & labels"], currency: ["Check Currency", "Detect Indian Rupee notes"] },
+  hi: { scene: ["दृश्य बताएं", "वस्तुएं और परिवेश पहचानें"], ocr: ["टेक्स्ट पढ़ें", "OCR, प्रिस्क्रिप्शन और लेबल"], currency: ["नोट पहचानें", "भारतीय रुपये के नोट"] },
+  te: { scene: ["దృశ్యం వివరించు", "వస్తువులు & పరిసరాలు"], ocr: ["టెక్స్ట్ చదువు", "OCR, ప్రిస్క్రిప్షన్ & లేబుల్స్"], currency: ["నోటు గుర్తించు", "భారతీయ రూపాయల నోట్లు"] },
 };
 
 const modePrompts: Record<string, Record<Language, string>> = {
   scene: {
-    en: "Describe what's around me.",
-    hi: "मेरे आसपास क्या है बताइए।",
-    te: "నా చుట్టూ ఏముందో చెప్పండి.",
+    en: "Describe what's around me. Warn me about any obstacles or hazards first.",
+    hi: "मेरे आसपास क्या है बताइए। पहले किसी भी बाधा या खतरे के बारे में बताइए।",
+    te: "నా చుట్టూ ఏముందో చెప్పండి. ముందుగా ఏవైనా అడ్డంకులు లేదా ప్రమాదాల గురించి చెప్పండి.",
   },
   ocr: {
-    en: "Read any text you can see.",
-    hi: "जो भी लिखा दिखे वो पढ़िए।",
-    te: "కనిపించే టెక్స్ట్ చదవండి.",
+    en: "Read any text you can see. If this looks like a prescription or medicine label, extract medicine names, dosage, and timing details.",
+    hi: "जो भी लिखा दिखे वो पढ़िए। अगर यह प्रिस्क्रिप्शन या दवा का लेबल है तो दवा का नाम, खुराक और समय बताइए।",
+    te: "కనిపించే టెక్స్ట్ చదవండి. ఇది ప్రిస్క్రిప్షన్ లేదా మందు లేబుల్ అయితే మందు పేరు, మోతాదు, సమయం చెప్పండి.",
   },
   currency: {
     en: "What Indian Rupee notes do you see?",
@@ -78,6 +85,22 @@ const Index = () => {
 
   const { videoRef, isActive: cameraActive, isReady, startCamera, stopCamera, captureImage } = useCamera();
   const { speak, stop: stopSpeech, isSpeaking, unlock } = useSpeech();
+
+  const languageRef = useRef(language);
+  languageRef.current = language;
+
+  // Medicine reminder alert handler
+  const handleReminderAlert = useCallback(
+    (reminder: { medicineName: string; dosage: string; notes: string }) => {
+      const lang = languageRef.current;
+      const msg = `${feedback.reminderAlert[lang]}${reminder.medicineName}. ${reminder.dosage}${reminder.notes ? ` — ${reminder.notes}` : ""}`;
+      toast.info(msg);
+      speak(msg, lang);
+    },
+    [speak]
+  );
+
+  const { reminders, addReminder, removeReminder, toggleReminder } = useMedicineReminders(handleReminderAlert);
 
   // Pre-load browser voices
   useEffect(() => {
@@ -156,7 +179,6 @@ const Index = () => {
     [cameraActive, isReady, captureImage, speak, language, unlock, conversationHistory]
   );
 
-  // Handle button-based feature requests
   const analyzeWithMode = useCallback(
     (mode: "scene" | "ocr" | "currency") => {
       const prompt = modePrompts[mode]?.[language] || modePrompts[mode]?.en || "What do you see?";
@@ -165,7 +187,6 @@ const Index = () => {
     [sendToAssistant, language]
   );
 
-  // Handle voice commands — everything goes to the AI conversationally
   const handleVoiceCommand = useCallback(
     (transcript: string) => {
       unlock();
@@ -193,7 +214,6 @@ const Index = () => {
   const { isListening, continuousMode, startListening, stopListening, startContinuousMode, resumeListening } =
     useVoiceCommand(handleVoiceCommand, language);
 
-  // Keep resumeRef in sync so sendToAssistant can call it without circular deps
   useEffect(() => {
     resumeRef.current = resumeListening;
   }, [resumeListening]);
@@ -261,6 +281,16 @@ const Index = () => {
           disabled={isLoading}
           isActive={activeMode === "thinking"}
         />
+
+        <div className="mx-0">
+          <MedicineReminders
+            reminders={reminders}
+            onAdd={addReminder}
+            onRemove={removeReminder}
+            onToggle={toggleReminder}
+            language={language}
+          />
+        </div>
       </div>
 
       <div className="sticky bottom-0 pb-6 pt-3 bg-background/95 backdrop-blur-sm border-t border-border">
