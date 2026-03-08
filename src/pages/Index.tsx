@@ -14,9 +14,38 @@ import { toast } from "sonner";
 type Mode = "scene" | "ocr" | "currency";
 
 const welcomeMessages: Record<Language, string> = {
-  en: "Hello, I'm ready. Point the camera and I will describe what I see.",
-  hi: "नमस्ते, मैं तैयार हूँ। कैमरा दिखाइए, मैं बताऊँगा क्या दिख रहा है।",
-  te: "హలో, నేను సిద్ధంగా ఉన్నాను. కెమెరా చూపించండి, నేను చెప్తాను.",
+  en: "Hello, I'm ready to help. Just point the camera and tell me what you need.",
+  hi: "नमस्ते, मैं तैयार हूँ। कैमरा दिखाइए और बताइए क्या करना है।",
+  te: "హలో, నేను సిద్ధంగా ఉన్నాను. కెమెరా చూపించి, ఏం కావాలో చెప్పండి.",
+};
+
+// Natural, conversational feedback messages
+const feedback: Record<string, Record<Language, string>> = {
+  cameraNeeded: {
+    en: "Please turn on the camera first, then I can help you.",
+    hi: "कृपया पहले कैमरा चालू कीजिए, फिर मैं मदद कर सकता हूँ।",
+    te: "దయచేసి ముందుగా కెమెరా ఆన్ చేయండి, అప్పుడు నేను సహాయం చేయగలను.",
+  },
+  cameraNotReady: {
+    en: "Give me a moment, the camera is still getting ready.",
+    hi: "एक पल रुकिए, कैमरा अभी तैयार हो रहा है।",
+    te: "ఒక్క క్షణం ఆగండి, కెమెరా ఇంకా సిద్ధమవుతోంది.",
+  },
+  cameraStopped: {
+    en: "Camera is off now.",
+    hi: "कैमरा बंद हो गया।",
+    te: "కెమెరా ఆపేశాను.",
+  },
+  didntUnderstand: {
+    en: "I didn't quite catch that. You can say things like — describe what's around me, read the text, or check the money.",
+    hi: "मैं समझ नहीं पाया। आप कह सकते हैं — आसपास क्या है बताओ, लिखा हुआ पढ़ो, या नोट पहचानो।",
+    te: "నాకు అర్థం కాలేదు. మీరు ఇలా చెప్పవచ్చు — చుట్టూ ఏముందో చెప్పు, రాసింది చదువు, లేదా నోటు చూడు.",
+  },
+  analyzing: {
+    en: "Let me take a look...",
+    hi: "देखता हूँ...",
+    te: "చూస్తాను...",
+  },
 };
 
 const Index = () => {
@@ -28,9 +57,8 @@ const Index = () => {
   const { videoRef, isActive: cameraActive, isReady, startCamera, stopCamera, captureImage } = useCamera();
   const { speak, stop: stopSpeech, isSpeaking, unlock } = useSpeech();
 
-  // Speak welcome message when camera starts
   const handleStartCamera = useCallback(async () => {
-    unlock(); // Unlock speech synthesis from user gesture
+    unlock();
     await startCamera();
     speak(welcomeMessages[language], language);
   }, [startCamera, speak, language, unlock]);
@@ -45,14 +73,9 @@ const Index = () => {
 
   const analyzeImage = useCallback(
     async (mode: Mode) => {
-      unlock(); // Unlock speech synthesis from user gesture
+      unlock();
       if (!isReady) {
-        const msgs: Record<Language, string> = {
-          en: "Please start the camera first.",
-          hi: "कृपया पहले कैमरा चालू करें।",
-          te: "దయచేసి ముందుగా కెమెరా ప్రారంభించండి.",
-        };
-        const msg = msgs[language];
+        const msg = feedback.cameraNeeded[language];
         toast.error(msg);
         speak(msg, language);
         return;
@@ -60,12 +83,7 @@ const Index = () => {
 
       const image = captureImage();
       if (!image) {
-        const msgs: Record<Language, string> = {
-          en: "Camera not ready yet. Please wait a moment.",
-          hi: "कैमरा अभी तैयार नहीं है। कृपया थोड़ा रुकें।",
-          te: "కెమెరా ఇంకా సిద్ధంగా లేదు. దయచేసి కొద్దిసేపు ఆగండి.",
-        };
-        const msg = msgs[language];
+        const msg = feedback.cameraNotReady[language];
         toast.error(msg);
         speak(msg, language);
         return;
@@ -74,6 +92,9 @@ const Index = () => {
       setActiveMode(mode);
       setIsLoading(true);
       setResponse("");
+
+      // Speak a brief "thinking" message
+      speak(feedback.analyzing[language], language);
 
       try {
         const { data, error } = await supabase.functions.invoke("vision-assist", {
@@ -87,7 +108,7 @@ const Index = () => {
         setResponse(result);
         speak(result, language);
       } catch (err: any) {
-        const msg = err?.message || "Analysis failed. Please try again.";
+        const msg = err?.message || "Something went wrong. Please try again.";
         setResponse(msg);
         toast.error(msg);
         speak(msg, language);
@@ -96,57 +117,79 @@ const Index = () => {
         setActiveMode(null);
       }
     },
-    [isReady, captureImage, speak, language]
+    [isReady, captureImage, speak, language, unlock]
   );
 
   const handleVoiceCommand = useCallback(
     (command: string) => {
-      // Broader keyword sets — Telugu speech recognition returns varied transliterations
+      // command may contain multiple alternatives separated by " | "
+      const allText = command.toLowerCase();
+
+      // Broad, natural keyword sets for each action
       const sceneWords = [
-        "scene", "describe", "see", "look", "around",
-        "दृश्य", "बताओ", "देखो", "दिखाओ", "आसपास",
-        "దృశ్యం", "వివరించు", "వివరించ", "చూడు", "చూడ", "చెప్పు", "చెప్ప", "చుట్టూ", "ఏముంది", "ఏమిటి", "చూపించు", "చూపించ"
+        // English - natural phrases
+        "scene", "describe", "see", "look", "around", "what's around", "surroundings",
+        "what do you see", "what is around", "tell me", "show me", "what's here",
+        // Hindi
+        "दृश्य", "बताओ", "बताइए", "देखो", "देखिए", "दिखाओ", "दिखाइए",
+        "आसपास", "क्या है", "क्या दिख", "सामने",
+        // Telugu
+        "దృశ్యం", "వివరించు", "వివరించ", "చూడు", "చూడ", "చెప్పు", "చెప్ప",
+        "చుట్టూ", "ఏముంది", "ఏమిటి", "చూపించు", "చూపించ", "ఏం ఉంది",
+        "ఏం కనిపిస్తోంది", "చెప్పండి",
       ];
       const ocrWords = [
-        "read", "text", "ocr", "written",
-        "पढ़ो", "पढ़", "टेक्स्ट", "लिखा",
-        "చదువు", "చదువ", "చదివి", "టెక్స్ట్", "టెక్స్ట", "రాత", "రాసి", "అక్షరాలు", "ఏం రాసి"
+        // English
+        "read", "text", "ocr", "written", "what does it say", "what's written",
+        "reading", "letters", "words",
+        // Hindi
+        "पढ़ो", "पढ़", "पढ़िए", "टेक्स्ट", "लिखा", "क्या लिखा", "अक्षर",
+        // Telugu
+        "చదువు", "చదువ", "చదివి", "టెక్స్ట్", "టెక్స్ట", "రాత", "రాసి",
+        "అక్షరాలు", "ఏం రాసి", "రాసింది", "చదవండి", "ఏం రాసుంది",
       ];
       const currencyWords = [
-        "money", "currency", "rupee", "note", "cash",
-        "पैसा", "पैसे", "नोट", "रुपया", "रुपये",
-        "నోటు", "నోట్లు", "రూపాయి", "రూపాయలు", "పైసా", "పైసలు", "డబ్బు", "గుర్తించు", "గుర్తించ", "ఎంత"
+        // English
+        "money", "currency", "rupee", "note", "cash", "how much", "denomination",
+        "bill", "notes", "rupees",
+        // Hindi
+        "पैसा", "पैसे", "नोट", "रुपया", "रुपये", "कितने", "कितना",
+        // Telugu
+        "నోటు", "నోట్లు", "రూపాయి", "రూపాయలు", "పైసా", "పైసలు", "డబ్బు",
+        "గుర్తించు", "గుర్తించ", "ఎంత", "ఎన్ని",
       ];
       const startWords = [
-        "camera", "start", "open",
-        "कैमरा", "शुरू", "खोलो",
-        "కెమెరా", "కేమెరా", "చాలు", "స్టార్ట్", "మొదలు", "ప్రారంభ", "ఓపెన్"
+        // English
+        "camera", "start", "open", "turn on", "switch on",
+        // Hindi
+        "कैमरा", "शुरू", "खोलो", "खोलिए", "चालू",
+        // Telugu
+        "కెమెరా", "కేమెరా", "చాలు", "స్టార్ట్", "మొదలు", "ప్రారంభ", "ఓపెన్",
+        "ఆన్ చేయ",
       ];
       const stopWords = [
-        "stop", "close", "off",
-        "बंद", "रुको", "बंद करो",
-        "ఆపు", "ఆప", "ఆగు", "ఆగ", "బంద్", "క్లోజ్", "ఆపండి", "ఆపేయ"
+        // English
+        "stop", "close", "off", "turn off", "shut",
+        // Hindi
+        "बंद", "रुको", "रुकिए", "बंद करो",
+        // Telugu
+        "ఆపు", "ఆప", "ఆగు", "ఆగ", "బంద్", "క్లోజ్", "ఆపండి", "ఆపేయ",
+        "ఆఫ్ చేయ",
       ];
 
-      if (sceneWords.some(w => command.includes(w))) {
+      if (sceneWords.some(w => allText.includes(w))) {
         analyzeImage("scene");
-      } else if (ocrWords.some(w => command.includes(w))) {
+      } else if (ocrWords.some(w => allText.includes(w))) {
         analyzeImage("ocr");
-      } else if (currencyWords.some(w => command.includes(w))) {
+      } else if (currencyWords.some(w => allText.includes(w))) {
         analyzeImage("currency");
-      } else if (startWords.some(w => command.includes(w))) {
+      } else if (startWords.some(w => allText.includes(w))) {
         handleStartCamera();
-      } else if (stopWords.some(w => command.includes(w))) {
+      } else if (stopWords.some(w => allText.includes(w))) {
         stopCamera();
-        const msgs: Record<Language, string> = { en: "Camera stopped.", hi: "कैमरा बंद।", te: "కెమెరా ఆపబడింది." };
-        speak(msgs[language], language);
+        speak(feedback.cameraStopped[language], language);
       } else {
-        const msgs: Record<Language, string> = {
-          en: "Try saying: describe scene, read text, or check currency.",
-          hi: "कहिए: दृश्य बताओ, टेक्स्ट पढ़ो, या नोट पहचानो।",
-          te: "చెప్పండి: చుట్టూ చూడు, టెక్స్ట్ చదువు, లేదా నోటు గుర్తించు.",
-        };
-        speak(msgs[language], language);
+        speak(feedback.didntUnderstand[language], language);
       }
     },
     [analyzeImage, handleStartCamera, stopCamera, speak, language]
@@ -239,8 +282,8 @@ const Index = () => {
         />
         <p className="text-center text-sm text-muted-foreground mt-2">
           {isListening
-            ? language === "hi" ? "सुन रहा हूँ... बोलिए" : language === "te" ? "వింటున్నాను... చెప్పండి" : "Listening... speak a command"
-            : language === "hi" ? "वॉइस कमांड के लिए माइक दबाएं" : language === "te" ? "వాయిస్ కమాండ్ కోసం మైక్ నొక్కండి" : "Tap mic for voice commands"}
+            ? language === "hi" ? "सुन रहा हूँ... बोलिए" : language === "te" ? "వింటున్నాను... చెప్పండి" : "Listening... go ahead"
+            : language === "hi" ? "माइक दबाकर बोलिए" : language === "te" ? "మైక్ నొక్కి చెప్పండి" : "Tap mic to speak"}
         </p>
       </div>
     </div>
