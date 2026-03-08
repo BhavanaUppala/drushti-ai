@@ -4,10 +4,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { useCamera } from "@/hooks/useCamera";
 import { useSpeech } from "@/hooks/useSpeech";
 import { useVoiceCommand } from "@/hooks/useVoiceCommand";
+import { useContinuousAnalysis } from "@/hooks/useContinuousAnalysis";
 import { CameraView } from "@/components/CameraView";
 import { FeatureButton } from "@/components/FeatureButton";
 import { ResponsePanel } from "@/components/ResponsePanel";
 import { VoiceButton } from "@/components/VoiceButton";
+import { ContinuousModeButton } from "@/components/ContinuousModeButton";
 import { LanguageSelector, type Language } from "@/components/LanguageSelector";
 import { toast } from "sonner";
 
