@@ -17,7 +17,7 @@ const Index = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [activeMode, setActiveMode] = useState<Mode | null>(null);
 
-  const { videoRef, isActive: cameraActive, startCamera, stopCamera, captureImage } = useCamera();
+  const { videoRef, isActive: cameraActive, isReady, startCamera, stopCamera, captureImage } = useCamera();
   const { speak, stop: stopSpeech, isSpeaking } = useSpeech();
 
   const analyzeImage = useCallback(
