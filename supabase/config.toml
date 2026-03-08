@@ -2,3 +2,9 @@ project_id = "vltmvbjvllnfxlddleov"
 
 [functions.vision-assist]
 verify_jwt = false
+
+[functions.voice-intent]
+verify_jwt = false
+
+[functions.elevenlabs-tts]
+verify_jwt = false

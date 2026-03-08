@@ -1,134 +1,110 @@
-import { useCallback, useRef, useState, useEffect } from "react";
+import { useCallback, useRef, useState } from "react";
 
-const langMap: Record<string, string> = {
-  en: "en-IN",
-  hi: "hi-IN",
-  te: "te-IN",
-};
-
-function findBestVoice(voices: SpeechSynthesisVoice[], langCode: string): SpeechSynthesisVoice | null {
-  const langPrefix = langCode.split("-")[0];
-
-  // Prefer Google voices (they sound more natural)
-  const googleExact = voices.find(v => v.lang === langCode && v.name.toLowerCase().includes("google"));
-  if (googleExact) return googleExact;
-
-  // Exact match
-  let v = voices.find(v => v.lang === langCode);
-  if (v) return v;
-
-  // Google prefix match
-  const googlePrefix = voices.find(v => v.lang.startsWith(langPrefix) && v.name.toLowerCase().includes("google"));
-  if (googlePrefix) return googlePrefix;
-
-  // Prefix match
-  v = voices.find(v => v.lang.startsWith(langPrefix));
-  if (v) return v;
-
-  // Name-based match
-  const nameKeywords: Record<string, string[]> = {
-    te: ["telugu", "తెలుగు"],
-    hi: ["hindi", "हिन्दी", "हिंदी"],
-    en: ["english"],
-  };
-  const keywords = nameKeywords[langPrefix] || [];
-  v = voices.find(vx => keywords.some(k => vx.name.toLowerCase().includes(k)));
-  if (v) return v;
-
-  return null;
-}
+const TTS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/elevenlabs-tts`;
 
 export function useSpeech() {
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
-  const unlockedRef = useRef(false);
-  const voicesLoadedRef = useRef(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const preUnlockedAudioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Pre-load voices
-  useEffect(() => {
-    if (!("speechSynthesis" in window)) return;
-    const loadVoices = () => {
-      const v = window.speechSynthesis.getVoices();
-      if (v.length > 0) voicesLoadedRef.current = true;
-    };
-    loadVoices();
-    window.speechSynthesis.onvoiceschanged = loadVoices;
-  }, []);
-
+  // Call this during a user gesture (e.g. mic tap, button press) to pre-unlock
+  // an Audio element so it can play after async operations on mobile
   const unlock = useCallback(() => {
-    if (unlockedRef.current) return;
-    if (!("speechSynthesis" in window)) return;
-    const silent = new SpeechSynthesisUtterance("");
-    silent.volume = 0;
-    window.speechSynthesis.speak(silent);
-    unlockedRef.current = true;
+    const audio = new Audio();
+    audio.play().catch(() => {}); // Unlock for iOS Safari
+    audio.preload = "auto";
+    preUnlockedAudioRef.current = audio;
   }, []);
 
-  const speak = useCallback((text: string, language: string = "en") => {
-    if (!("speechSynthesis" in window)) return;
-    window.speechSynthesis.cancel();
+  const speak = useCallback(async (text: string, language: string = "en") => {
+    if (!text || text.trim().length === 0) return;
 
-    const doSpeak = () => {
-      const langCode = langMap[language] || "en-IN";
-      const voices = window.speechSynthesis.getVoices();
+    // Stop any current playback
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
 
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = langCode;
-      // Natural speech: slightly slower, warm pitch
-      utterance.rate = language === "te" ? 0.8 : 0.85;
-      utterance.pitch = 1.05;
-      utterance.volume = 1;
+    setIsSpeaking(true);
 
-      const matchedVoice = findBestVoice(voices, langCode);
-      if (matchedVoice) {
-        utterance.voice = matchedVoice;
-      } else if (language !== "en") {
-        // Telugu voices are rare — try Hindi, then any Indian English, then default
-        const fallbackChain = language === "te" 
-          ? ["hi-IN", "en-IN"] 
-          : ["en-IN"];
-        let fallbackVoice: SpeechSynthesisVoice | null = null;
-        for (const fb of fallbackChain) {
-          fallbackVoice = findBestVoice(voices, fb);
-          if (fallbackVoice) break;
-        }
-        if (!fallbackVoice && voices.length > 0) {
-          fallbackVoice = voices[0]; // Use any available voice
-        }
-        if (fallbackVoice) {
-          utterance.voice = fallbackVoice;
-          utterance.lang = fallbackVoice.lang; // Match lang to voice to avoid silent output
-        }
+    try {
+      const response = await fetch(TTS_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: JSON.stringify({ text, language }),
+      });
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || `TTS failed: ${response.status}`);
       }
 
-      utterance.onstart = () => setIsSpeaking(true);
-      utterance.onend = () => setIsSpeaking(false);
-      utterance.onerror = () => setIsSpeaking(false);
+      const data = await response.json();
+      if (!data.audioContent) throw new Error("No audio received");
 
-      utteranceRef.current = utterance;
-      window.speechSynthesis.speak(utterance);
-    };
+      const audioUrl = `data:audio/mpeg;base64,${data.audioContent}`;
 
-    const voices = window.speechSynthesis.getVoices();
-    if (voices.length === 0) {
-      const onVoicesReady = () => {
-        window.speechSynthesis.onvoiceschanged = null;
-        doSpeak();
+      // Use pre-unlocked Audio element if available (mobile), else create new
+      const audio = preUnlockedAudioRef.current || new Audio();
+      preUnlockedAudioRef.current = null;
+
+      audio.src = audioUrl;
+      audio.onended = () => {
+        setIsSpeaking(false);
+        audioRef.current = null;
       };
-      window.speechSynthesis.onvoiceschanged = onVoicesReady;
-      setTimeout(() => {
-        window.speechSynthesis.onvoiceschanged = null;
-        doSpeak();
-      }, 500);
-    } else {
-      doSpeak();
+      audio.onerror = () => {
+        setIsSpeaking(false);
+        audioRef.current = null;
+      };
+
+      audioRef.current = audio;
+      await audio.play();
+    } catch (err) {
+      console.error("Cloud TTS error:", err);
+      setIsSpeaking(false);
+      // Fallback to browser TTS
+      fallbackBrowserTTS(text, language);
     }
   }, []);
 
   const stop = useCallback(() => {
-    window.speechSynthesis.cancel();
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+    // Also stop any browser TTS fallback
+    if ("speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
     setIsSpeaking(false);
   }, []);
 
   return { speak, stop, isSpeaking, unlock };
+}
+
+// Browser TTS fallback if cloud TTS fails
+function fallbackBrowserTTS(text: string, language: string) {
+  if (!("speechSynthesis" in window)) return;
+
+  const langMap: Record<string, string> = { en: "en-IN", hi: "hi-IN", te: "te-IN" };
+  const langCode = langMap[language] || "en-IN";
+
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = langCode;
+  utterance.rate = 0.85;
+  utterance.pitch = 1.05;
+
+  const voices = window.speechSynthesis.getVoices();
+  const voice = voices.find(v => v.lang === langCode) || voices.find(v => v.lang.startsWith(language));
+  if (voice) {
+    utterance.voice = voice;
+    utterance.lang = voice.lang;
+  }
+
+  window.speechSynthesis.speak(utterance);
 }
