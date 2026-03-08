@@ -26,14 +26,20 @@ serve(async (req) => {
             role: "system",
             content: `You are an intent classifier for a vision assistant app used by visually impaired people.
 The app has these actions:
-- "scene" — describe surroundings / what's around / look around
-- "ocr" — read text / what does it say / read aloud
-- "currency" — identify money / check notes / how much money
+- "scene" — describe what's around, what's in front, what am I looking at, what is this, identify objects, what am I holding, what do you see
+- "ocr" — read text, read label, what does it say, read aloud, what's written
+- "currency" — identify money, check notes, is this money, how much, what denomination, rupee
+- "object" — what is this object, identify this, what am I touching, describe this item (treat same as "scene")
+- "followup" — any follow-up or clarification like "tell me more", "what else", "can you explain", "say that again" (treat same as "scene")
 - "start_camera" — turn on / start / open camera
 - "stop_camera" — turn off / stop / close camera
-- "unknown" — if none of the above match
+- "unknown" — only if the speech is completely unintelligible or unrelated to vision assistance
 
-The user speaks in English, Hindi, or Telugu. They may use casual, natural language.
+The user speaks in English, Hindi, or Telugu. They use natural, conversational language — not commands.
+Be generous in matching: if the user seems to want visual help, prefer "scene" over "unknown".
+Phrases like "what is this?", "what am I holding?", "can you see anything?" should map to "scene".
+Phrases like "is this money?", "how much is this note?" should map to "currency".
+Phrases like "can you read this?", "what's written here?" should map to "ocr".
 
 Respond with ONLY a JSON object: {"intent": "<action>"}
 No explanation, no extra text. Just the JSON.`

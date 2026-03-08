@@ -135,6 +135,8 @@ const Index = () => {
 
         switch (intent) {
           case "scene":
+          case "object":
+          case "followup":
             analyzeImage("scene");
             break;
           case "ocr":
@@ -156,8 +158,7 @@ const Index = () => {
         }
       } catch (err) {
         console.error("Voice intent error:", err);
-        // Fallback: try basic keyword matching if AI fails
-        fallbackKeywordMatch(transcript);
+        speak(feedback.didntUnderstand[language], language);
       }
     },
     [analyzeImage, handleStartCamera, stopCamera, speak, language]
