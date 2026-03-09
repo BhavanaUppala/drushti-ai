@@ -223,7 +223,7 @@ const Index = () => {
   );
 
   const handleVoiceCommand = useCallback(
-    (transcript: string) => {
+    async (transcript: string) => {
       unlock();
       const text = transcript.split(" | ")[0];
 
