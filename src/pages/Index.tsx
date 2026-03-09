@@ -110,6 +110,41 @@ const Index = () => {
     }
   }, []);
 
+  // Auto-start camera and continuous listening on first user interaction
+  const autoStartedRef = useRef(false);
+  useEffect(() => {
+    if (autoStartedRef.current) return;
+    const autoStart = async () => {
+      if (autoStartedRef.current) return;
+      autoStartedRef.current = true;
+      unlock();
+      try {
+        await startCamera();
+        speak(welcomeMessages[language], language);
+        // Start continuous listening after a brief delay for welcome message
+        setTimeout(() => {
+          startContinuousMode();
+        }, 1500);
+      } catch (e) {
+        console.log("Auto-start failed, user gesture may be required:", e);
+      }
+    };
+    // Try immediately (works on some browsers)
+    autoStart();
+    // Also listen for first interaction as fallback
+    const handleInteraction = () => {
+      if (!autoStartedRef.current) autoStart();
+      document.removeEventListener("click", handleInteraction);
+      document.removeEventListener("touchstart", handleInteraction);
+    };
+    document.addEventListener("click", handleInteraction, { once: true });
+    document.addEventListener("touchstart", handleInteraction, { once: true });
+    return () => {
+      document.removeEventListener("click", handleInteraction);
+      document.removeEventListener("touchstart", handleInteraction);
+    };
+  }, []);
+
   const handleStartCamera = useCallback(async () => {
     unlock();
     await startCamera();
