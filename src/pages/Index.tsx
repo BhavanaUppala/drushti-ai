@@ -152,6 +152,9 @@ const Index = () => {
   }, [startCamera, speak, language, unlock]);
 
   const resumeRef = useRef<() => void>(() => {});
+  const stopListeningRef = useRef<() => void>(() => {});
+  const startContinuousModeRef = useRef<() => void>(() => {});
+  const continuousModeRef = useRef(false);
 
   const sendToAssistant = useCallback(
     async (message: string, includeImage: boolean) => {
