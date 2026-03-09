@@ -241,6 +241,35 @@ const Index = () => {
         return;
       }
 
+      // Safety voice commands
+      const stopListeningWords = ["stop listening", "stop voice", "be quiet", "chup", "सुनना बंद करो", "आवाज बंद", "వినడం ఆపు"];
+      const pauseCameraWords = ["pause camera", "कैमरा रोको", "కెమెరా ఆపు"];
+      const resumeWords = ["resume assistant", "resume", "continue", "जारी रखो", "फिर से शुरू", "కొనసాగించు", "మళ్ళీ మొదలు"];
+
+      if (stopListeningWords.some(w => lowerText.includes(w))) {
+        stopListening();
+        stopSpeech();
+        const msg = language === "hi" ? "मैंने सुनना बंद कर दिया।" : language === "te" ? "నేను వినడం ఆపేశాను." : "I've stopped listening.";
+        speak(msg, language);
+        return;
+      }
+      if (pauseCameraWords.some(w => lowerText.includes(w))) {
+        stopCamera();
+        speak(feedback.cameraStopped[language], language, () => resumeRef.current());
+        return;
+      }
+      if (resumeWords.some(w => lowerText.includes(w))) {
+        if (!cameraActive) {
+          await startCamera();
+        }
+        if (!continuousMode) {
+          startContinuousMode();
+        }
+        const msg = language === "hi" ? "मैं फिर से तैयार हूँ।" : language === "te" ? "నేను మళ్ళీ సిద్ధంగా ఉన్నాను." : "I'm ready again.";
+        speak(msg, language, () => resumeRef.current());
+        return;
+      }
+
       sendToAssistant(text, cameraActive && isReady);
     },
     [unlock, handleStartCamera, stopCamera, speak, language, sendToAssistant, cameraActive, isReady]
