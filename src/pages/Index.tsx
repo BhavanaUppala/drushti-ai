@@ -154,8 +154,8 @@ const Index = () => {
   const handleStartCamera = useCallback(async () => {
     unlock();
     await startCamera();
-    speak(welcomeMessages[language], language);
-  }, [startCamera, speak, language, unlock]);
+    speak(cameraActive ? cameraActiveMessages[language] : cameraActiveMessages[language], language);
+  }, [startCamera, speak, language, unlock, cameraActive]);
 
   const resumeRef = useRef<() => void>(() => {});
   const stopListeningRef = useRef<() => void>(() => {});
