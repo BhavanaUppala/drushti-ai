@@ -24,6 +24,12 @@ const welcomeMessages: Record<Language, string> = {
   te: "హలో, నేను సిద్ధంగా ఉన్నాను. కెమెరా చూపించి మాట్లాడండి. నేను వింటూ ఉంటాను.",
 };
 
+const cameraActiveMessages: Record<Language, string> = {
+  en: "Camera is active. You can ask me about your surroundings.",
+  hi: "कैमरा चालू है। आप मुझसे अपने आसपास के बारे में पूछ सकते हैं।",
+  te: "కెమెరా యాక్టివ్‌గా ఉంది. మీ పరిసరాల గురించి నన్ను అడగవచ్చు.",
+};
+
 const feedback: Record<string, Record<Language, string>> = {
   cameraNeeded: {
     en: "Please turn on the camera first, then I can help you.",
