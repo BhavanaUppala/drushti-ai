@@ -250,7 +250,7 @@ const Index = () => {
       const resumeWords = ["resume assistant", "resume", "continue", "जारी रखो", "फिर से शुरू", "కొనసాగించు", "మళ్ళీ మొదలు"];
 
       if (stopListeningWords.some(w => lowerText.includes(w))) {
-        stopListening();
+        stopListeningRef.current();
         stopSpeech();
         const msg = language === "hi" ? "मैंने सुनना बंद कर दिया।" : language === "te" ? "నేను వినడం ఆపేశాను." : "I've stopped listening.";
         speak(msg, language);
@@ -265,8 +265,8 @@ const Index = () => {
         if (!cameraActive) {
           await startCamera();
         }
-        if (!continuousMode) {
-          startContinuousMode();
+        if (!continuousModeRef.current) {
+          startContinuousModeRef.current();
         }
         const msg = language === "hi" ? "मैं फिर से तैयार हूँ।" : language === "te" ? "నేను మళ్ళీ సిద్ధంగా ఉన్నాను." : "I'm ready again.";
         speak(msg, language, () => resumeRef.current());
@@ -275,7 +275,7 @@ const Index = () => {
 
       sendToAssistant(text, cameraActive && isReady);
     },
-    [unlock, handleStartCamera, stopCamera, startCamera, speak, language, sendToAssistant, cameraActive, isReady, stopSpeech, continuousMode, startContinuousMode, stopListening]
+    [unlock, handleStartCamera, stopCamera, startCamera, speak, language, sendToAssistant, cameraActive, isReady, stopSpeech]
   );
 
   const { isListening, continuousMode, startListening, stopListening, startContinuousMode, resumeListening } =
