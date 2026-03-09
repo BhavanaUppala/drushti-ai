@@ -171,6 +171,14 @@ const Index = () => {
     async (message: string, includeImage: boolean) => {
       unlock();
 
+      // Guard: reject all requests when camera is off
+      if (!cameraActive) {
+        const msg = feedback.cameraNotActive[language];
+        toast.error(msg);
+        speak(msg, language, () => resumeRef.current());
+        return;
+      }
+
       let image: string | null = null;
       if (includeImage) {
         if (!cameraActive) {
