@@ -126,7 +126,7 @@ const Index = () => {
       unlock();
       try {
         await startCamera();
-        speak(welcomeMessages[language], language);
+        speak(cameraActiveMessages[language], language);
         // Start continuous listening after a brief delay for welcome message
         setTimeout(() => {
           startContinuousModeRef.current();
