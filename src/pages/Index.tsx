@@ -272,7 +272,7 @@ const Index = () => {
 
       sendToAssistant(text, cameraActive && isReady);
     },
-    [unlock, handleStartCamera, stopCamera, speak, language, sendToAssistant, cameraActive, isReady]
+    [unlock, handleStartCamera, stopCamera, startCamera, speak, language, sendToAssistant, cameraActive, isReady, stopSpeech, continuousMode, startContinuousMode, stopListening]
   );
 
   const { isListening, continuousMode, startListening, stopListening, startContinuousMode, resumeListening } =
