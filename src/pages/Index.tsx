@@ -283,7 +283,10 @@ const Index = () => {
 
   useEffect(() => {
     resumeRef.current = resumeListening;
-  }, [resumeListening]);
+    stopListeningRef.current = stopListening;
+    startContinuousModeRef.current = startContinuousMode;
+    continuousModeRef.current = continuousMode;
+  }, [resumeListening, stopListening, startContinuousMode, continuousMode]);
 
   const labels = featureLabels[language];
 
