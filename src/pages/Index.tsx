@@ -284,6 +284,14 @@ const Index = () => {
         return;
       }
 
+      // Gate: require camera for all non-control commands
+      if (!cameraActive) {
+        const msg = feedback.cameraNotActive[language];
+        toast.error(msg);
+        speak(msg, language, () => resumeRef.current());
+        return;
+      }
+
       sendToAssistant(text, cameraActive && isReady);
     },
     [unlock, handleStartCamera, stopCamera, startCamera, speak, language, sendToAssistant, cameraActive, isReady, stopSpeech]
