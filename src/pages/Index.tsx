@@ -123,7 +123,7 @@ const Index = () => {
         speak(welcomeMessages[language], language);
         // Start continuous listening after a brief delay for welcome message
         setTimeout(() => {
-          startContinuousMode();
+          startContinuousModeRef.current();
         }, 1500);
       } catch (e) {
         console.log("Auto-start failed, user gesture may be required:", e);
