@@ -110,6 +110,41 @@ const Index = () => {
     }
   }, []);
 
+  // Auto-start camera and continuous listening on first user interaction
+  const autoStartedRef = useRef(false);
+  useEffect(() => {
+    if (autoStartedRef.current) return;
+    const autoStart = async () => {
+      if (autoStartedRef.current) return;
+      autoStartedRef.current = true;
+      unlock();
+      try {
+        await startCamera();
+        speak(welcomeMessages[language], language);
+        // Start continuous listening after a brief delay for welcome message
+        setTimeout(() => {
+          startContinuousModeRef.current();
+        }, 1500);
+      } catch (e) {
+        console.log("Auto-start failed, user gesture may be required:", e);
+      }
+    };
+    // Try immediately (works on some browsers)
+    autoStart();
+    // Also listen for first interaction as fallback
+    const handleInteraction = () => {
+      if (!autoStartedRef.current) autoStart();
+      document.removeEventListener("click", handleInteraction);
+      document.removeEventListener("touchstart", handleInteraction);
+    };
+    document.addEventListener("click", handleInteraction, { once: true });
+    document.addEventListener("touchstart", handleInteraction, { once: true });
+    return () => {
+      document.removeEventListener("click", handleInteraction);
+      document.removeEventListener("touchstart", handleInteraction);
+    };
+  }, []);
+
   const handleStartCamera = useCallback(async () => {
     unlock();
     await startCamera();
@@ -117,6 +152,9 @@ const Index = () => {
   }, [startCamera, speak, language, unlock]);
 
   const resumeRef = useRef<() => void>(() => {});
+  const stopListeningRef = useRef<() => void>(() => {});
+  const startContinuousModeRef = useRef<() => void>(() => {});
+  const continuousModeRef = useRef(false);
 
   const sendToAssistant = useCallback(
     async (message: string, includeImage: boolean) => {
@@ -188,7 +226,7 @@ const Index = () => {
   );
 
   const handleVoiceCommand = useCallback(
-    (transcript: string) => {
+    async (transcript: string) => {
       unlock();
       const text = transcript.split(" | ")[0];
 
@@ -206,9 +244,38 @@ const Index = () => {
         return;
       }
 
+      // Safety voice commands
+      const stopListeningWords = ["stop listening", "stop voice", "be quiet", "chup", "सुनना बंद करो", "आवाज बंद", "వినడం ఆపు"];
+      const pauseCameraWords = ["pause camera", "कैमरा रोको", "కెమెరా ఆపు"];
+      const resumeWords = ["resume assistant", "resume", "continue", "जारी रखो", "फिर से शुरू", "కొనసాగించు", "మళ్ళీ మొదలు"];
+
+      if (stopListeningWords.some(w => lowerText.includes(w))) {
+        stopListeningRef.current();
+        stopSpeech();
+        const msg = language === "hi" ? "मैंने सुनना बंद कर दिया।" : language === "te" ? "నేను వినడం ఆపేశాను." : "I've stopped listening.";
+        speak(msg, language);
+        return;
+      }
+      if (pauseCameraWords.some(w => lowerText.includes(w))) {
+        stopCamera();
+        speak(feedback.cameraStopped[language], language, () => resumeRef.current());
+        return;
+      }
+      if (resumeWords.some(w => lowerText.includes(w))) {
+        if (!cameraActive) {
+          await startCamera();
+        }
+        if (!continuousModeRef.current) {
+          startContinuousModeRef.current();
+        }
+        const msg = language === "hi" ? "मैं फिर से तैयार हूँ।" : language === "te" ? "నేను మళ్ళీ సిద్ధంగా ఉన్నాను." : "I'm ready again.";
+        speak(msg, language, () => resumeRef.current());
+        return;
+      }
+
       sendToAssistant(text, cameraActive && isReady);
     },
-    [unlock, handleStartCamera, stopCamera, speak, language, sendToAssistant, cameraActive, isReady]
+    [unlock, handleStartCamera, stopCamera, startCamera, speak, language, sendToAssistant, cameraActive, isReady, stopSpeech]
   );
 
   const { isListening, continuousMode, startListening, stopListening, startContinuousMode, resumeListening } =
@@ -216,7 +283,10 @@ const Index = () => {
 
   useEffect(() => {
     resumeRef.current = resumeListening;
-  }, [resumeListening]);
+    stopListeningRef.current = stopListening;
+    startContinuousModeRef.current = startContinuousMode;
+    continuousModeRef.current = continuousMode;
+  }, [resumeListening, stopListening, startContinuousMode, continuousMode]);
 
   const labels = featureLabels[language];
 
