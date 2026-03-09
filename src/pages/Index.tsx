@@ -46,6 +46,11 @@ const feedback: Record<string, Record<Language, string>> = {
     hi: "कैमरा बंद हो गया।",
     te: "కెమెరా ఆపేశాను.",
   },
+  cameraNotActive: {
+    en: "Camera is not active. Please enable the camera.",
+    hi: "कैमरा चालू नहीं है। कृपया कैमरा चालू करें।",
+    te: "కెమెరా యాక్టివ్‌గా లేదు. దయచేసి కెమెరాను ఆన్ చేయండి.",
+  },
   analyzing: {
     en: "Let me take a look...",
     hi: "देखता हूँ...",
