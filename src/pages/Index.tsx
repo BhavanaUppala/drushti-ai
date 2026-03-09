@@ -46,6 +46,11 @@ const feedback: Record<string, Record<Language, string>> = {
     hi: "कैमरा बंद हो गया।",
     te: "కెమెరా ఆపేశాను.",
   },
+  cameraNotActive: {
+    en: "Camera is not active. Please enable the camera.",
+    hi: "कैमरा चालू नहीं है। कृपया कैमरा चालू करें।",
+    te: "కెమెరా యాక్టివ్‌గా లేదు. దయచేసి కెమెరాను ఆన్ చేయండి.",
+  },
   analyzing: {
     en: "Let me take a look...",
     hi: "देखता हूँ...",
@@ -166,6 +171,14 @@ const Index = () => {
     async (message: string, includeImage: boolean) => {
       unlock();
 
+      // Guard: reject all requests when camera is off
+      if (!cameraActive) {
+        const msg = feedback.cameraNotActive[language];
+        toast.error(msg);
+        speak(msg, language, () => resumeRef.current());
+        return;
+      }
+
       let image: string | null = null;
       if (includeImage) {
         if (!cameraActive) {
@@ -275,6 +288,14 @@ const Index = () => {
           startContinuousModeRef.current();
         }
         const msg = language === "hi" ? "मैं फिर से तैयार हूँ।" : language === "te" ? "నేను మళ్ళీ సిద్ధంగా ఉన్నాను." : "I'm ready again.";
+        speak(msg, language, () => resumeRef.current());
+        return;
+      }
+
+      // Gate: require camera for all non-control commands
+      if (!cameraActive) {
+        const msg = feedback.cameraNotActive[language];
+        toast.error(msg);
         speak(msg, language, () => resumeRef.current());
         return;
       }
