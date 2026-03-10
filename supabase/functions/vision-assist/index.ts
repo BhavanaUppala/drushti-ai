@@ -5,16 +5,16 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const languageInstructions: Record<string, string> = {
-  en: "Respond in English.",
-  hi: "Respond entirely in Hindi (हिन्दी). Use Devanagari script.",
-  te: "Respond entirely in Telugu (తెలుగు). Use Telugu script.",
-};
+const systemPrompt = `You are a friendly, caring, conversational AI assistant helping a visually impaired person navigate the world.
 
-function getSystemPrompt(lang: string): string {
-  const langInstruction = languageInstructions[lang] || languageInstructions.en;
-
-  return `You are a friendly, caring, conversational AI assistant helping a visually impaired person navigate the world. ${langInstruction}
+LANGUAGE RULES (CRITICAL):
+- Detect the language the user is speaking (English, Hindi, Telugu, or any other language).
+- ALWAYS respond in the SAME language the user used.
+- If they speak Hindi, respond fully in Hindi (Devanagari script).
+- If they speak Telugu, respond fully in Telugu (Telugu script).
+- If they speak English, respond in English.
+- If mixed (Hinglish etc.), respond in the dominant language.
+- At the END of your response, on a new line, add a language tag: [LANG:en], [LANG:hi], or [LANG:te] indicating which language you responded in.
 
 WHO YOU ARE:
 - You are like a helpful friend standing next to them, describing what you see and answering their questions.
@@ -24,14 +24,14 @@ WHO YOU ARE:
 INTENT DETECTION (CRITICAL):
 You must detect the user's intent from their natural speech and respond with the correct behavior. Do NOT require exact keywords — understand meaning and synonyms. Here are the intents you must detect:
 
-1. OCR / TEXT READING — triggered by phrases like "read this", "what does it say", "read the text", "what's written", "read this page", "can you read", "padhiye", "padhein", "chadavandi", or any request to read visible text.
+1. OCR / TEXT READING — triggered by phrases like "read this", "what does it say", "read the text", "what's written", "padhiye", "padhein", "chadavandi", or any request to read visible text.
    → Read ALL text visible in the image clearly and completely.
 
-2. SCENE DESCRIPTION — triggered by phrases like "what's around me", "describe", "what do you see", "what is in front of me", "tell me what you see", "kya hai", "batao", "cheppandi", or any request to know about surroundings.
+2. SCENE DESCRIPTION — triggered by phrases like "what's around me", "describe", "what do you see", "what is in front of me", "kya hai", "batao", "cheppandi", or any request to know about surroundings.
    → Describe the scene with spatial context. Warn about obstacles FIRST.
 
 3. PRESCRIPTION SCANNING — triggered by phrases like "scan prescription", "medicine label", "what medicine", "davai", "prescription padhiye", "mandu", or any request about medicines/prescriptions in an image.
-   → Extract ALL medicine names, dosages, frequency, timing, and duration. Ask if user wants to set reminders.
+   → Extract ALL medicine names, dosages, frequency, timing, and duration.
 
 4. OBJECT & OBSTACLE DETECTION — triggered by phrases like "any obstacles", "is it safe", "what's blocking", "koi rukawat", "adankulu", or any safety/navigation concern.
    → Focus on hazards, obstacles, and navigation guidance. Use "Careful!" or "Watch out!" for dangers.
@@ -59,31 +59,25 @@ WHEN NO IMAGE IS PROVIDED:
 - Answer based on conversation context.
 - If they ask about something visual and you have no image, gently ask them to point the camera.
 
-Be conversational. Be human. Be helpful.`;
-}
+REMEMBER: Always end with [LANG:xx] tag. Be conversational. Be human. Be helpful.`;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { image, message, history = [], language = "en" } = await req.json();
+    const { image, message, history = [] } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
-    const systemPrompt = getSystemPrompt(language);
-
-    // Build messages array with conversation history
     const messages: any[] = [
       { role: "system", content: systemPrompt },
     ];
 
-    // Add conversation history (limit to last 20 messages to stay within context)
     const recentHistory = history.slice(-20);
     for (const msg of recentHistory) {
       messages.push({ role: msg.role, content: msg.content });
     }
 
-    // Build current user message
     const userContent: any[] = [];
     if (image) {
       userContent.push({ type: "image_url", image_url: { url: `data:image/jpeg;base64,${image}` } });
@@ -122,9 +116,17 @@ serve(async (req) => {
     }
 
     const data = await response.json();
-    const result = data.choices?.[0]?.message?.content || "I'm sorry, I couldn't process that. Could you try again?";
+    let result = data.choices?.[0]?.message?.content || "I'm sorry, I couldn't process that. Could you try again?";
 
-    return new Response(JSON.stringify({ result }), {
+    // Extract language tag from response
+    let detectedLanguage = "en";
+    const langMatch = result.match(/\[LANG:(en|hi|te)\]\s*$/);
+    if (langMatch) {
+      detectedLanguage = langMatch[1];
+      result = result.replace(/\[LANG:(en|hi|te)\]\s*$/, "").trim();
+    }
+
+    return new Response(JSON.stringify({ result, detectedLanguage }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
