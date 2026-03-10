@@ -2,19 +2,12 @@ import { useCallback, useRef, useState, useEffect } from "react";
 
 type CommandHandler = (command: string) => void;
 
-const langMap: Record<string, string> = {
-  en: "en-IN",
-  hi: "hi-IN",
-  te: "te-IN",
-};
-
-export function useVoiceCommand(onCommand: CommandHandler, language: string = "en") {
+export function useVoiceCommand(onCommand: CommandHandler) {
   const [isListening, setIsListening] = useState(false);
   const [continuousMode, setContinuousMode] = useState(false);
   const recognitionRef = useRef<any>(null);
   const continuousModeRef = useRef(false);
 
-  // Keep ref in sync with state
   useEffect(() => {
     continuousModeRef.current = continuousMode;
   }, [continuousMode]);
@@ -31,9 +24,8 @@ export function useVoiceCommand(onCommand: CommandHandler, language: string = "e
     recognition.continuous = false;
     recognition.interimResults = false;
     recognition.maxAlternatives = 3;
-
-    const recLang = language === "te" ? "hi-IN" : (langMap[language] || "en-IN");
-    recognition.lang = recLang;
+    // Use hi-IN for broad recognition of English, Hindi, and Hinglish on Indian devices
+    recognition.lang = "hi-IN";
 
     recognition.onstart = () => setIsListening(true);
     recognition.onresult = (event: any) => {
@@ -59,7 +51,7 @@ export function useVoiceCommand(onCommand: CommandHandler, language: string = "e
       console.log("Speech recognition start failed:", e);
       setIsListening(false);
     }
-  }, [onCommand, language]);
+  }, [onCommand]);
 
   const stopListening = useCallback(() => {
     setContinuousMode(false);
@@ -78,7 +70,6 @@ export function useVoiceCommand(onCommand: CommandHandler, language: string = "e
 
   const resumeListening = useCallback(() => {
     if (continuousModeRef.current) {
-      // Small delay to avoid overlapping with speech recognition end
       setTimeout(() => {
         if (continuousModeRef.current) {
           startListening();
