@@ -111,7 +111,7 @@ const Index = () => {
         setDetectedLanguage(lang);
 
         const assistantMsg: ConversationMessage = { role: "assistant", content: result };
-        setConversationHistory(prev => [...prev, userMsg, assistantMsg].slice(-40));
+        conversationHistoryRef.current = [...conversationHistoryRef.current, userMsg, assistantMsg].slice(-40);
         setResponse(result);
 
         speak(result, lang, () => resumeRef.current());
