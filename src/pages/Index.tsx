@@ -100,7 +100,7 @@ const Index = () => {
 
       try {
         const { data, error } = await supabase.functions.invoke("vision-assist", {
-          body: { image, message, history: conversationHistory },
+          body: { image, message, history: conversationHistoryRef.current },
         });
 
         if (error) throw error;
