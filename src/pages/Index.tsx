@@ -124,7 +124,7 @@ const Index = () => {
         setIsLoading(false);
       }
     },
-    [cameraActive, isReady, captureImage, speak, unlock, conversationHistory]
+    [cameraActive, isReady, captureImage, speak, unlock]
   );
 
   const handleVoiceCommand = useCallback(
