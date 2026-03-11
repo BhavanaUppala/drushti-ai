@@ -6,11 +6,21 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-// Google Cloud TTS language/voice config
+// Google Cloud TTS voice config for all supported Indian languages
 const langVoiceMap: Record<string, { languageCode: string; name: string; ssmlGender: string }> = {
   en: { languageCode: "en-IN", name: "en-IN-Neural2-B", ssmlGender: "MALE" },
   hi: { languageCode: "hi-IN", name: "hi-IN-Neural2-B", ssmlGender: "MALE" },
   te: { languageCode: "te-IN", name: "te-IN-Standard-B", ssmlGender: "MALE" },
+  ta: { languageCode: "ta-IN", name: "ta-IN-Standard-B", ssmlGender: "MALE" },
+  kn: { languageCode: "kn-IN", name: "kn-IN-Standard-B", ssmlGender: "MALE" },
+  ml: { languageCode: "ml-IN", name: "ml-IN-Standard-B", ssmlGender: "MALE" },
+  mr: { languageCode: "mr-IN", name: "mr-IN-Standard-B", ssmlGender: "MALE" },
+  bn: { languageCode: "bn-IN", name: "bn-IN-Standard-B", ssmlGender: "MALE" },
+  gu: { languageCode: "gu-IN", name: "gu-IN-Standard-B", ssmlGender: "MALE" },
+  pa: { languageCode: "pa-IN", name: "pa-IN-Standard-B", ssmlGender: "MALE" },
+  ur: { languageCode: "ur-IN", name: "ur-IN-Standard-B", ssmlGender: "MALE" },
+  od: { languageCode: "or-IN", name: "or-IN-Standard-B", ssmlGender: "MALE" },
+  as: { languageCode: "as-IN", name: "as-IN-Standard-B", ssmlGender: "MALE" },
 };
 
 serve(async (req) => {

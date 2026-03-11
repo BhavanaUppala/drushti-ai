@@ -1,8 +1,9 @@
 import { useCallback, useRef, useState, useEffect } from "react";
+import { LANGUAGE_MAP } from "@/lib/languages";
 
 type CommandHandler = (command: string) => void;
 
-export function useVoiceCommand(onCommand: CommandHandler) {
+export function useVoiceCommand(onCommand: CommandHandler, recognitionLang?: string) {
   const [isListening, setIsListening] = useState(false);
   const [continuousMode, setContinuousMode] = useState(false);
   const recognitionRef = useRef<any>(null);
@@ -24,8 +25,10 @@ export function useVoiceCommand(onCommand: CommandHandler) {
     recognition.continuous = false;
     recognition.interimResults = false;
     recognition.maxAlternatives = 3;
-    // Use hi-IN for broad recognition of English, Hindi, and Hinglish on Indian devices
-    recognition.lang = "hi-IN";
+
+    // Use the selected language's speech recognition code, default to hi-IN for broad Indian language support
+    const langConfig = recognitionLang ? LANGUAGE_MAP.get(recognitionLang) : null;
+    recognition.lang = langConfig?.speechRecogLang || "hi-IN";
 
     recognition.onstart = () => setIsListening(true);
     recognition.onresult = (event: any) => {
@@ -51,7 +54,7 @@ export function useVoiceCommand(onCommand: CommandHandler) {
       console.log("Speech recognition start failed:", e);
       setIsListening(false);
     }
-  }, [onCommand]);
+  }, [onCommand, recognitionLang]);
 
   const stopListening = useCallback(() => {
     setContinuousMode(false);

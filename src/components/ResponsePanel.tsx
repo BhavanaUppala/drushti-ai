@@ -1,4 +1,5 @@
 import { Volume2, VolumeX } from "lucide-react";
+import { loadingText, readAloudText, stopText } from "@/lib/languages";
 
 interface ResponsePanelProps {
   response: string;
@@ -8,24 +9,6 @@ interface ResponsePanelProps {
   onStop: () => void;
   language?: string;
 }
-
-const loadingText: Record<string, string> = {
-  en: "Analyzing...",
-  hi: "विश्लेषण हो रहा है...",
-  te: "విశ్లేషిస్తోంది...",
-};
-
-const readAloudText: Record<string, string> = {
-  en: "Read Aloud",
-  hi: "पढ़कर सुनाएं",
-  te: "చదివి వినిపించు",
-};
-
-const stopText: Record<string, string> = {
-  en: "Stop Reading",
-  hi: "रुकें",
-  te: "ఆపండి",
-};
 
 export function ResponsePanel({ response, isLoading, isSpeaking, onSpeak, onStop, language = "en" }: ResponsePanelProps) {
   if (!response && !isLoading) return null;
