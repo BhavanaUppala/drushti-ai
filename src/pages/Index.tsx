@@ -17,21 +17,10 @@ const Index = () => {
   const [response, setResponse] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [detectedLanguage, setDetectedLanguage] = useState("en");
-  const [conversationHistory, setConversationHistory] = useState<ConversationMessage[]>([]);
+  const conversationHistoryRef = useRef<ConversationMessage[]>([]);
 
   const { videoRef, isActive: cameraActive, isReady, startCamera, stopCamera, captureImage } = useCamera();
   const { speak, stop: stopSpeech, isSpeaking, unlock } = useSpeech();
-
-  const detectedLangRef = useRef(detectedLanguage);
-  detectedLangRef.current = detectedLanguage;
-
-  // Pre-load browser voices
-  useEffect(() => {
-    if ("speechSynthesis" in window) {
-      window.speechSynthesis.getVoices();
-      window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
-    }
-  }, []);
 
   // Auto-start camera and continuous listening
   const autoStartedRef = useRef(false);
@@ -111,7 +100,7 @@ const Index = () => {
 
       try {
         const { data, error } = await supabase.functions.invoke("vision-assist", {
-          body: { image, message, history: conversationHistory },
+          body: { image, message, history: conversationHistoryRef.current },
         });
 
         if (error) throw error;
@@ -122,7 +111,7 @@ const Index = () => {
         setDetectedLanguage(lang);
 
         const assistantMsg: ConversationMessage = { role: "assistant", content: result };
-        setConversationHistory(prev => [...prev, userMsg, assistantMsg].slice(-40));
+        conversationHistoryRef.current = [...conversationHistoryRef.current, userMsg, assistantMsg].slice(-40);
         setResponse(result);
 
         speak(result, lang, () => resumeRef.current());
@@ -135,7 +124,7 @@ const Index = () => {
         setIsLoading(false);
       }
     },
-    [cameraActive, isReady, captureImage, speak, unlock, conversationHistory]
+    [cameraActive, isReady, captureImage, speak, unlock]
   );
 
   const handleVoiceCommand = useCallback(
