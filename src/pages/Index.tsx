@@ -17,21 +17,10 @@ const Index = () => {
   const [response, setResponse] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [detectedLanguage, setDetectedLanguage] = useState("en");
-  const [conversationHistory, setConversationHistory] = useState<ConversationMessage[]>([]);
+  const conversationHistoryRef = useRef<ConversationMessage[]>([]);
 
   const { videoRef, isActive: cameraActive, isReady, startCamera, stopCamera, captureImage } = useCamera();
   const { speak, stop: stopSpeech, isSpeaking, unlock } = useSpeech();
-
-  const detectedLangRef = useRef(detectedLanguage);
-  detectedLangRef.current = detectedLanguage;
-
-  // Pre-load browser voices
-  useEffect(() => {
-    if ("speechSynthesis" in window) {
-      window.speechSynthesis.getVoices();
-      window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
-    }
-  }, []);
 
   // Auto-start camera and continuous listening
   const autoStartedRef = useRef(false);
