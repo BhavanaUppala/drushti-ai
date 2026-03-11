@@ -62,17 +62,6 @@
   }
 }
 
-@layer utilities {
-  .btn-feature {
-    @apply min-h-[80px] rounded-2xl text-xl font-bold transition-all duration-200 active:scale-95 focus:outline-none focus:ring-4 focus:ring-ring/50;
-  }
-}
-
-@keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 20px hsl(185 90% 55% / 0.3); }
-  50% { box-shadow: 0 0 40px hsl(185 90% 55% / 0.6); }
-}
-
 @keyframes listening-pulse {
   0%, 100% { transform: scale(1); opacity: 0.6; }
   50% { transform: scale(1.3); opacity: 0; }
