@@ -3,9 +3,9 @@ import { useCallback, useRef, useState } from "react";
 const TTS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-tts`;
 
 const langMap: Record<string, string> = {
-  en: "en-IN",
-  hi: "hi-IN",
-  te: "te-IN",
+  en: "en-IN", hi: "hi-IN", te: "te-IN", ta: "ta-IN", kn: "kn-IN",
+  ml: "ml-IN", mr: "mr-IN", bn: "bn-IN", gu: "gu-IN", pa: "pa-IN",
+  ur: "ur-IN", od: "or-IN", as: "as-IN",
 };
 
 export function useSpeech() {
@@ -24,7 +24,6 @@ export function useSpeech() {
   const speak = useCallback(async (text: string, language: string = "en", onEnd?: () => void) => {
     if (!text || text.trim().length === 0) return;
 
-    // Stop any current playback
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current = null;

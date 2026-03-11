@@ -5,16 +5,18 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+const supportedLangCodes = ["en","hi","te","ta","kn","ml","mr","bn","gu","pa","ur","od","as"];
+const langTagRegex = new RegExp(`\\[LANG:(${supportedLangCodes.join("|")})\\]\\s*$`);
+
 const systemPrompt = `You are a friendly, caring, conversational AI assistant helping a visually impaired person navigate the world.
 
 LANGUAGE RULES (CRITICAL):
-- Detect the language the user is speaking (English, Hindi, Telugu, or any other language).
+- You support these languages: English (en), Hindi (hi), Telugu (te), Tamil (ta), Kannada (kn), Malayalam (ml), Marathi (mr), Bengali (bn), Gujarati (gu), Punjabi (pa), Urdu (ur), Odia (od), Assamese (as).
+- Detect the language the user is speaking.
 - ALWAYS respond in the SAME language the user used.
-- If they speak Hindi, respond fully in Hindi (Devanagari script).
-- If they speak Telugu, respond fully in Telugu (Telugu script).
-- If they speak English, respond in English.
-- If mixed (Hinglish etc.), respond in the dominant language.
-- At the END of your response, on a new line, add a language tag: [LANG:en], [LANG:hi], or [LANG:te] indicating which language you responded in.
+- If the user speaks in a regional language, respond fully in that language using its native script.
+- If mixed languages, respond in the dominant language.
+- At the END of your response, on a new line, add a language tag: [LANG:xx] where xx is the language code from the list above.
 
 WHO YOU ARE:
 - You are like a helpful friend standing next to them, describing what you see and answering their questions.
@@ -22,21 +24,21 @@ WHO YOU ARE:
 - You are warm, patient, and supportive.
 
 INTENT DETECTION (CRITICAL):
-You must detect the user's intent from their natural speech and respond with the correct behavior. Do NOT require exact keywords — understand meaning and synonyms. Here are the intents you must detect:
+You must detect the user's intent from their natural speech and respond with the correct behavior. Do NOT require exact keywords — understand meaning and synonyms in ANY of the supported languages.
 
-1. OCR / TEXT READING — triggered by phrases like "read this", "what does it say", "read the text", "what's written", "padhiye", "padhein", "chadavandi", or any request to read visible text.
+1. OCR / TEXT READING — any request to read visible text.
    → Read ALL text visible in the image clearly and completely.
 
-2. SCENE DESCRIPTION — triggered by phrases like "what's around me", "describe", "what do you see", "what is in front of me", "kya hai", "batao", "cheppandi", or any request to know about surroundings.
+2. SCENE DESCRIPTION — any request to know about surroundings.
    → Describe the scene with spatial context. Warn about obstacles FIRST.
 
-3. PRESCRIPTION SCANNING — triggered by phrases like "scan prescription", "medicine label", "what medicine", "davai", "prescription padhiye", "mandu", or any request about medicines/prescriptions in an image.
+3. PRESCRIPTION SCANNING — any request about medicines/prescriptions in an image.
    → Extract ALL medicine names, dosages, frequency, timing, and duration.
 
-4. OBJECT & OBSTACLE DETECTION — triggered by phrases like "any obstacles", "is it safe", "what's blocking", "koi rukawat", "adankulu", or any safety/navigation concern.
-   → Focus on hazards, obstacles, and navigation guidance. Use "Careful!" or "Watch out!" for dangers.
+4. OBJECT & OBSTACLE DETECTION — any safety/navigation concern.
+   → Focus on hazards, obstacles, and navigation guidance. Use warnings for dangers.
 
-5. CURRENCY DETECTION — triggered by phrases like "what note", "how much money", "kitne ka note", "enta note", or any request about banknotes.
+5. CURRENCY DETECTION — any request about banknotes.
    → Identify Indian Rupee denominations in words.
 
 6. GENERAL CONVERSATION — anything else: answer naturally using conversation context.
@@ -65,12 +67,17 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { image, message, history = [] } = await req.json();
+    const { image, message, history = [], preferredLanguage } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
+    let systemContent = systemPrompt;
+    if (preferredLanguage && supportedLangCodes.includes(preferredLanguage)) {
+      systemContent += `\n\nIMPORTANT: The user's preferred language is "${preferredLanguage}". If you cannot clearly detect their language from the message, default to responding in "${preferredLanguage}".`;
+    }
+
     const messages: any[] = [
-      { role: "system", content: systemPrompt },
+      { role: "system", content: systemContent },
     ];
 
     const recentHistory = history.slice(-20);
@@ -119,11 +126,11 @@ serve(async (req) => {
     let result = data.choices?.[0]?.message?.content || "I'm sorry, I couldn't process that. Could you try again?";
 
     // Extract language tag from response
-    let detectedLanguage = "en";
-    const langMatch = result.match(/\[LANG:(en|hi|te)\]\s*$/);
+    let detectedLanguage = preferredLanguage || "en";
+    const langMatch = result.match(langTagRegex);
     if (langMatch) {
       detectedLanguage = langMatch[1];
-      result = result.replace(/\[LANG:(en|hi|te)\]\s*$/, "").trim();
+      result = result.replace(langTagRegex, "").trim();
     }
 
     return new Response(JSON.stringify({ result, detectedLanguage }), {
